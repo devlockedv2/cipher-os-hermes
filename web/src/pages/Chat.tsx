@@ -4,7 +4,7 @@ import { Send, CircleDot, Search, Compass, Hammer, Shield, Bot, AlertTriangle, T
 import './Chat.css'
 
 interface Message {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'thinking'
   content: string
   agent?: string
   ticket_id?: string
@@ -106,13 +106,25 @@ export default function Chat() {
   // ── Event handler ──────────────────────────────────────────────────────
   const handleEvent = (event: { type: string; [key: string]: unknown }) => {
     switch (event.type) {
+      case 'thinking': {
+        // Agent is starting up — show/refresh typing indicator
+        setMessages(prev => {
+          const last = prev[prev.length - 1]
+          if (last?.role === 'thinking') return prev // already showing
+          return [...prev, { role: 'thinking', content: '' }]
+        })
+        break
+      }
       case 'routing': {
         const agent = event.agent as string
-        setMessages(prev => [...prev, {
-          role: 'system',
-          content: `Routing to **${agent}**`,
-          agent,
-        }])
+        setMessages(prev => {
+          const filtered = prev.filter(m => m.role !== 'thinking')
+          return [...filtered, {
+            role: 'system',
+            content: `Routing to **${agent}**`,
+            agent,
+          }]
+        })
         // Start empty streaming message
         setMessages(prev => [...prev, {
           role: 'assistant',
@@ -297,6 +309,16 @@ export default function Chat() {
 function ChatBubble({ msg }: { msg: Message }) {
   const agentColor = msg.agent ? AGENT_COLORS[msg.agent] || '#8B5CF6' : '#8B5CF6'
   const agentIcon = msg.agent ? AGENT_ICONS[msg.agent] || <Bot size={14} /> : null
+
+  if (msg.role === 'thinking') {
+    return (
+      <div className="thinking-indicator">
+        <div className="thinking-dot" />
+        <div className="thinking-dot" />
+        <div className="thinking-dot" />
+      </div>
+    )
+  }
 
   if (msg.role === 'system') {
     return (

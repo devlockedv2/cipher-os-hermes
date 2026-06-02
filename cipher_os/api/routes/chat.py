@@ -16,6 +16,20 @@ from ...tickets import create_ticket
 
 router = APIRouter()
 
+
+async def _heartbeat(ws: WebSocket, interval: float = 4.0):
+    """Send thinking heartbeats every `interval` seconds until cancelled.
+    Keeps the WebSocket alive during slow Hermes subprocess startup (~20s)."""
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            await ws.send_json({"type": "thinking"})
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        pass
+
+
 # Markers Cipher outputs to trigger system actions
 # [DELEGATE:agent:task description]
 # [TICKET:type:title]
@@ -96,6 +110,10 @@ async def chat_websocket(ws: WebSocket):
             start_time = time.time()
             full_response_parts = []
 
+            # Send a heartbeat every 3 seconds while waiting for first token
+            # so the client knows the agent is starting up (Hermes can take 10-25s)
+            heartbeat_task = asyncio.create_task(_heartbeat(ws))
+
             try:
                 async for event in run_agent_streaming(
                     agent=primary_agent,
@@ -103,6 +121,7 @@ async def chat_websocket(ws: WebSocket):
                     workspace=workspace,
                 ):
                     if event["type"] == "token":
+                        heartbeat_task.cancel()  # first token arrived — stop heartbeats
                         # Buffer to detect markers — send cleaned token to UI
                         cleaned = _strip_markers(event["content"])
                         if cleaned:
@@ -113,6 +132,7 @@ async def chat_websocket(ws: WebSocket):
                         break
 
             except Exception as e:
+                heartbeat_task.cancel()
                 await ws.send_json({"type": "error", "content": str(e)})
 
             full_response = "".join(full_response_parts)
