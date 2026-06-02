@@ -104,6 +104,24 @@ else
   PKG_TOOL="install_uv"
 fi
 
+# Hermes Agent
+HERMES_BIN=""
+for cmd in hermes "$HOME/.local/bin/hermes"; do
+  if command -v "$cmd" &>/dev/null 2>&1 || [ -x "$cmd" ]; then
+    HERMES_BIN="$cmd"; break
+  fi
+done
+
+if [ -z "$HERMES_BIN" ]; then
+  error "Hermes Agent is required but not installed."
+  echo ""
+  echo -e "  Install it first:"
+  echo -e "  ${CYAN}curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash${RESET}"
+  echo ""
+  die "Aborting — install Hermes Agent and re-run this script"
+fi
+success "Hermes: $($HERMES_BIN --version 2>/dev/null | head -1 || echo 'found')"
+
 # curl or wget
 if command -v curl &>/dev/null; then
   FETCH="curl -fsSL"

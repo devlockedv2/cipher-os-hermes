@@ -25,10 +25,10 @@ curl -fsSL .../install.sh | bash -s -- --no-verify
 
 ## Requirements
 
+- [Hermes Agent](https://github.com/NousResearch/hermes-agent) *(required)*
 - Python 3.10+
 - Git
 - Node.js 18+ *(for the web UI — optional)*
-- [Hermes Agent](https://github.com/NousResearch/hermes-agent)
 
 ## Agents
 
