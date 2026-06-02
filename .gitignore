@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Cipher-OS runtime (not distributed)
+*.db
+*.db-journal
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node (web UI)
+web/node_modules/
+web/dist/
