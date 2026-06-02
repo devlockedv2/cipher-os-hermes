@@ -6,8 +6,10 @@ from typing import Optional
 
 from ...tickets import (
     create_ticket, update_ticket, get_ticket,
-    query_tickets, get_ticket_history,
+    query_tickets, get_ticket_history, sync_from_linear,
 )
+from ...integrations.linear import get_open_issues
+from ...core.config import get_linear_api_key
 
 router = APIRouter()
 
@@ -115,3 +117,27 @@ async def ticket_history(ticket_id: str, workspace: str):
     """Get change history for a ticket."""
     history = get_ticket_history(workspace, ticket_id)
     return history
+
+
+@router.post("/sync")
+async def sync_linear_tickets(workspace: str):
+    """Pull open issues from Linear and upsert into local ticket board."""
+    api_key = get_linear_api_key(workspace)
+    if not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No Linear API key configured for workspace '{workspace}'. Set it in Settings → Workspaces."
+        )
+    try:
+        issues = get_open_issues(api_key, limit=100)
+        result = sync_from_linear(workspace, issues)
+        return {
+            "ok": True,
+            "workspace": workspace,
+            "created": result["created"],
+            "updated": result["updated"],
+            "total": result["total"],
+            "message": f"Synced {result['total']} issues — {result['created']} new, {result['updated']} updated",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Linear sync failed: {e}")

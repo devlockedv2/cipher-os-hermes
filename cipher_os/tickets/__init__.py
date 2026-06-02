@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS tickets (
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    linear_id TEXT,
+    linear_url TEXT,
+    linear_identifier TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
@@ -76,6 +79,12 @@ def get_connection(workspace: str) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    # migrate: add linear columns if missing (idempotent)
+    existing = {r[1] for r in conn.execute("PRAGMA table_info(tickets)").fetchall()}
+    for col, defn in [("linear_id", "TEXT"), ("linear_url", "TEXT"), ("linear_identifier", "TEXT")]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE tickets ADD COLUMN {col} {defn}")
+    conn.commit()
     return conn
 
 
@@ -313,3 +322,79 @@ def get_ticket_history(workspace: str, ticket_id: str) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Linear sync
+# ---------------------------------------------------------------------------
+
+LINEAR_PRIORITY_MAP = {1: 1, 2: 2, 3: 3, 4: 4, 0: 3}
+LINEAR_STATE_MAP = {
+    "backlog": "backlog",
+    "unstarted": "backlog",
+    "started": "in_progress",
+    "in_progress": "in_progress",
+    "in_review": "review",
+    "review": "review",
+    "done": "done",
+    "completed": "done",
+    "cancelled": "cancelled",
+    "canceled": "cancelled",
+}
+
+
+def sync_from_linear(workspace: str, issues: list[dict]) -> dict:
+    """Upsert Linear issues into the local ticket board.
+
+    Returns {"created": N, "updated": N, "total": N}
+    """
+    conn = get_connection(workspace)
+    created = 0
+    updated = 0
+    now = datetime.now(timezone.utc).isoformat()
+
+    for issue in issues:
+        linear_id = issue.get("id") or issue.get("identifier")
+        if not linear_id:
+            continue
+
+        title = issue.get("title", "Untitled")
+        priority = LINEAR_PRIORITY_MAP.get(issue.get("priority", 0), 3)
+        state_raw = (issue.get("state") or {}).get("type", "backlog").lower()
+        status = LINEAR_STATE_MAP.get(state_raw, "backlog")
+        assignee = (issue.get("assignee") or {}).get("name")
+        url = issue.get("url", "")
+        identifier = issue.get("identifier", "")
+
+        # check if already synced
+        row = conn.execute(
+            "SELECT id, status, title FROM tickets WHERE linear_id = ? AND workspace = ?",
+            (linear_id, workspace)
+        ).fetchone()
+
+        if row:
+            # update if anything changed
+            conn.execute(
+                """UPDATE tickets SET
+                    title = ?, status = ?, priority = ?, assigned_to = ?,
+                    linear_url = ?, linear_identifier = ?, updated_at = ?
+                   WHERE linear_id = ? AND workspace = ?""",
+                (title, status, priority, assignee, url, identifier, now, linear_id, workspace)
+            )
+            updated += 1
+        else:
+            # create new
+            ticket_id = _next_id(conn, workspace)
+            conn.execute(
+                """INSERT INTO tickets
+                    (id, workspace, title, type, priority, status, assigned_to, created_by,
+                     linear_id, linear_url, linear_identifier, created_at, updated_at)
+                   VALUES (?, ?, ?, 'task', ?, ?, ?, 'linear', ?, ?, ?, ?, ?)""",
+                (ticket_id, workspace, title, priority, status, assignee,
+                 linear_id, url, identifier, now, now)
+            )
+            created += 1
+
+    conn.commit()
+    conn.close()
+    return {"created": created, "updated": updated, "total": len(issues)}

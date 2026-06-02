@@ -239,3 +239,43 @@
   margin-top: 4px;
 }
 
+
+/* Linear Sync */
+.tickets-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sync-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(139,92,246,0.15);
+  border: 1px solid rgba(139,92,246,0.35);
+  border-radius: 8px;
+  color: var(--violet);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.sync-btn:hover:not(:disabled) {
+  background: rgba(139,92,246,0.25);
+  border-color: rgba(139,92,246,0.6);
+  box-shadow: 0 0 12px rgba(139,92,246,0.3);
+}
+.sync-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.sync-btn.syncing { color: var(--cyan); border-color: rgba(125,211,252,0.4); }
+.sync-btn svg.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.sync-toast {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+.sync-toast.success { color: var(--mint); background: rgba(94,226,181,0.08); border: 1px solid rgba(94,226,181,0.2); }
+.sync-toast.error   { color: var(--red);  background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.2); }

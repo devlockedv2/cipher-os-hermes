@@ -1,10 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { api } from '../lib/api'
 import {
   CircleDot, Search, Compass, Hammer, Shield,
   Activity, DollarSign, CheckCircle, XCircle,
-  Zap, Clock, ChevronRight, TrendingUp
+  Zap, Clock, ChevronRight, TrendingUp, RefreshCw
 } from 'lucide-react'
 import './Dashboard.css'
 
@@ -83,8 +84,26 @@ function AgentBarChart({ data }: { data: any[] }) {
 }
 
 export default function Dashboard() {
+  const queryClient = useQueryClient()
   const { data, isLoading } = useQuery({ queryKey: ['dashboard'], queryFn: api.getDashboard, refetchInterval: 15000 })
   const navigate = useNavigate()
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  const { data: workspacesData = [] } = useQuery({ queryKey: ['workspaces'], queryFn: api.getWorkspaces })
+  const workspaces: string[] = (workspacesData as any[]).map((ws: any) => typeof ws === 'string' ? ws : ws.name)
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.syncLinear(workspaces[0] || 'default'),
+    onSuccess: (result: any) => {
+      setSyncMsg(result.message)
+      queryClient.invalidateQueries({ queryKey: ['tickets'] })
+      setTimeout(() => setSyncMsg(null), 5000)
+    },
+    onError: (e: any) => {
+      setSyncMsg(`Sync failed: ${e.message}`)
+      setTimeout(() => setSyncMsg(null), 5000)
+    },
+  })
 
   if (isLoading || !data) return (
     <div className="dashboard">
@@ -100,6 +119,26 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
+
+      {/* ── Header ───────────────────────────────────── */}
+      <div className="dash-header">
+        <div />
+        <div className="dash-header-actions">
+          {syncMsg && (
+            <span className={`sync-toast-inline ${syncMsg.startsWith('Sync failed') ? 'error' : 'success'}`}>
+              {syncMsg}
+            </span>
+          )}
+          <button
+            className={`sync-btn${syncMutation.isPending ? ' syncing' : ''}`}
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            <RefreshCw size={14} className={syncMutation.isPending ? 'spin' : ''} />
+            {syncMutation.isPending ? 'Syncing…' : 'Sync Linear'}
+          </button>
+        </div>
+      </div>
 
       {/* ── Metric Cards ─────────────────────────────── */}
       <div className="stats-row">

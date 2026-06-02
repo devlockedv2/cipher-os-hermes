@@ -1,6 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../lib/api'
+import { RefreshCw } from 'lucide-react'
 import './Tickets.css'
 
 const STATUS_COLUMNS = ['backlog', 'ready', 'in_progress', 'review', 'done']
@@ -21,6 +22,7 @@ const AGENT_COLORS: Record<string, string> = {
 }
 
 export default function Tickets() {
+  const queryClient = useQueryClient()
   const { data: workspacesData = [] } = useQuery({
     queryKey: ['workspaces'],
     queryFn: api.getWorkspaces,
@@ -28,11 +30,25 @@ export default function Tickets() {
   const workspaces: string[] = workspacesData.map((ws: any) => typeof ws === 'string' ? ws : ws.name)
   const [selectedWs, setSelectedWs] = useState('default')
   const activeWs = workspaces.includes(selectedWs) ? selectedWs : (workspaces[0] || 'default')
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['tickets', activeWs],
     queryFn: () => api.getTickets(activeWs),
     refetchInterval: 10000,
+  })
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.syncLinear(activeWs),
+    onSuccess: (result: any) => {
+      setSyncMsg(result.message)
+      queryClient.invalidateQueries({ queryKey: ['tickets', activeWs] })
+      setTimeout(() => setSyncMsg(null), 5000)
+    },
+    onError: (e: any) => {
+      setSyncMsg(`Sync failed: ${e.message}`)
+      setTimeout(() => setSyncMsg(null), 5000)
+    },
   })
 
   const tickets: any[] = data?.tickets || []
@@ -51,20 +67,36 @@ export default function Tickets() {
           <h1>Tickets</h1>
           <p className="page-subtitle">{openCount} open · {tickets.length} total</p>
         </div>
-        {workspaces.length > 1 && (
-          <div className="workspace-selector">
-            {workspaces.map(ws => (
-              <button
-                key={ws}
-                className={`ws-tab${activeWs === ws ? ' ws-tab--active' : ''}`}
-                onClick={() => setSelectedWs(ws)}
-              >
-                {ws}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="tickets-header-actions">
+          {workspaces.length > 1 && (
+            <div className="workspace-selector">
+              {workspaces.map(ws => (
+                <button
+                  key={ws}
+                  className={`ws-tab${activeWs === ws ? ' ws-tab--active' : ''}`}
+                  onClick={() => setSelectedWs(ws)}
+                >
+                  {ws}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            className={`sync-btn${syncMutation.isPending ? ' syncing' : ''}`}
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            title="Sync from Linear"
+          >
+            <RefreshCw size={14} className={syncMutation.isPending ? 'spin' : ''} />
+            {syncMutation.isPending ? 'Syncing…' : 'Sync Linear'}
+          </button>
+        </div>
       </div>
+      {syncMsg && (
+        <div className={`sync-toast ${syncMsg.startsWith('Sync failed') ? 'error' : 'success'}`}>
+          {syncMsg}
+        </div>
+      )}
 
       {isLoading && <div className="loading">Loading tickets…</div>}
       {error && <div className="error-msg">Failed to load tickets</div>}
