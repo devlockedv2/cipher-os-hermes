@@ -110,7 +110,7 @@ export default function Chat() {
         const agent = event.agent as string
         setMessages(prev => [...prev, {
           role: 'system',
-          content: `Routing to **${agent}** — ${event.reason}`,
+          content: `Routing to **${agent}**`,
           agent,
         }])
         // Start empty streaming message

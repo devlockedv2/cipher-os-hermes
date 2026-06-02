@@ -88,6 +88,7 @@ async def chat_websocket(ws: WebSocket):
             await ws.send_json({
                 "type": "routing",
                 "agent": primary_agent,
+                "reason": "direct" if (explicit_agent and explicit_agent != "cipher") else "orchestrator",
                 "direct": explicit_agent is not None and explicit_agent != "cipher",
             })
 
