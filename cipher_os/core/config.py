@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
@@ -109,3 +109,16 @@ def load_config(
         config = deep_merge(config, proj_config)
 
     return config
+
+
+def save_config(config: dict, workspace: Optional[str] = None) -> None:
+    """Persist config back to disk (global or workspace config.yaml)."""
+    home = get_cipher_home()
+    if workspace:
+        path = home / "workspaces" / workspace / "config.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        path = home / "config.yaml"
+    with open(path, "w") as f:
+        yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
