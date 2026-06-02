@@ -9,6 +9,7 @@
 /* Top Navigation */
 .topnav {
   height: var(--topnav-height);
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -16,8 +17,9 @@
   border-bottom: 1px solid var(--border-card);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  background: rgba(31, 31, 43, 0.6);
-  position: relative;
+  background: rgba(31, 31, 43, 0.92);
+  position: sticky;
+  top: 0;
   z-index: 100;
 }
 
@@ -109,7 +111,17 @@
 /* Main content */
 .main-content {
   flex: 1;
+  min-height: 0;
   padding: var(--space-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Pages that need their own scroll (non-chat) get it via this wrapper */
+.scrollable-page {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -157,6 +169,10 @@
 
   .main-content {
     padding: var(--space-md);
+  }
+
+  .main-content:has(.chat-page) {
+    padding: 0;
   }
 }
 

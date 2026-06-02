@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutGrid, Bot, ClipboardList, FolderOpen,
@@ -18,6 +18,8 @@ const NAV_ITEMS = [
 
 export default function Layout({ onLogout }: { onLogout?: () => void }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const location = useLocation()
+  const isChat = location.pathname === '/chat'
 
   return (
     <div className="app-layout">
@@ -62,7 +64,13 @@ export default function Layout({ onLogout }: { onLogout?: () => void }) {
         </div>
       </nav>
       <main className="main-content">
-        <Outlet />
+        {isChat ? (
+          <Outlet />
+        ) : (
+          <div className="scrollable-page">
+            <Outlet />
+          </div>
+        )}
       </main>
     </div>
   )

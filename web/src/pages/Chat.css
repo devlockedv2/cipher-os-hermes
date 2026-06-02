@@ -1,7 +1,7 @@
 .chat-page {
   max-width: 800px;
   margin: 0 auto;
-  height: calc(100vh - var(--topnav-height) - var(--space-lg) * 2);
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
@@ -343,7 +343,7 @@
 /* Mobile */
 @media (max-width: 768px) {
   .chat-page {
-    height: calc(100vh - var(--topnav-height) - 80px);
+    height: 100%;
   }
 
   .bubble-row {
