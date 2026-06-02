@@ -306,16 +306,26 @@ async def chat_websocket(ws: WebSocket):
                     })
 
                     sub_parts = []
+                    sub_in_tok = 0
+                    sub_out_tok = 0
+                    sub_cost = 0.0
                     try:
                         async for event in run_agent_streaming(
                             agent=sub_agent,
                             task=sub_task,
                             workspace=workspace,
                         ):
-                            await ws.send_json(event)
                             if event["type"] == "token":
                                 sub_parts.append(event["content"])
-                            elif event["type"] in ("done", "error"):
+                                await ws.send_json({"type": "token", "content": event["content"], "agent": sub_agent})
+                            elif event["type"] == "done":
+                                sub_in_tok = event.get("input_tokens", 0)
+                                sub_out_tok = event.get("output_tokens", 0)
+                                sub_cost = event.get("cost", 0.0)
+                                await ws.send_json({"type": "done", "content": "", "agent": sub_agent})
+                                break
+                            elif event["type"] == "error":
+                                await ws.send_json(event)
                                 break
                     except Exception as e:
                         await ws.send_json({"type": "error", "content": f"{sub_agent} error: {e}"})
@@ -328,6 +338,9 @@ async def chat_websocket(ws: WebSocket):
                             model=config.get("hermes", {}).get("model", "unknown"),
                             task=sub_task[:200],
                             status="completed" if sub_parts else "failed",
+                            input_tokens=sub_in_tok,
+                            output_tokens=sub_out_tok,
+                            cost=sub_cost,
                         )
                     except Exception:
                         pass

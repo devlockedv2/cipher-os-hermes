@@ -4,7 +4,7 @@ import { Send, CircleDot, Search, Compass, Hammer, Shield, Bot, AlertTriangle, T
 import './Chat.css'
 
 interface Message {
-  role: 'user' | 'assistant' | 'system' | 'thinking'
+  role: 'user' | 'assistant' | 'agent' | 'system' | 'thinking'
   content: string
   agent?: string
   ticket_id?: string
@@ -141,10 +141,15 @@ export default function Chat() {
 
       case 'token': {
         const content = event.content as string
+        const tokenAgent = (event.agent as string) || undefined
         setMessages(prev => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
-          if (last?.streaming) {
+          // If agent changed mid-conversation, close current bubble and start new one
+          if (last?.streaming && tokenAgent && last.agent !== tokenAgent) {
+            updated[updated.length - 1] = { ...last, streaming: false }
+            updated.push({ role: 'agent', content, agent: tokenAgent, streaming: true })
+          } else if (last?.streaming) {
             updated[updated.length - 1] = { ...last, content: last.content + content }
           }
           return updated
