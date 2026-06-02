@@ -342,6 +342,24 @@ function ChatBubble({ msg }: { msg: Message }) {
     )
   }
 
+  // Render markdown-lite: bold, bullet lists, newlines
+  const renderContent = (text: string) => {
+    const html = text
+      // Bold
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Bullet lines (- item or * item)
+      .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')
+      // Newlines → <br> (after list conversion so <li> lines stay clean)
+      .replace(/\n/g, '<br/>')
+      // Wrap consecutive <li> in <ul>
+      .replace(/(<li>.*?<\/li>(<br\/>)?)+/g, (match) =>
+        '<ul>' + match.replace(/<br\/>/g, '') + '</ul>'
+      )
+    return html
+  }
+
   return (
     <div className="bubble-row agent-row">
       <div className="agent-avatar" style={{ background: `${agentColor}22`, color: agentColor, border: `1px solid ${agentColor}44` }}>
@@ -364,7 +382,7 @@ function ChatBubble({ msg }: { msg: Message }) {
               <span className="thinking-dot" />
             </span>
           ) : (
-            msg.content || (msg.streaming ? '' : '—')
+            <span dangerouslySetInnerHTML={{ __html: renderContent(msg.content || (msg.streaming ? '' : '—')) }} />
           )}
           {msg.streaming && msg.content && <span className="cursor" />}
         </div>

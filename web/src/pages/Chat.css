@@ -160,8 +160,30 @@
 .agent-content {
   font-size: 14px;
   line-height: 1.7;
-  white-space: pre-wrap;
+  white-space: normal;
   word-break: break-word;
+}
+
+.agent-content ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.agent-content li {
+  margin: 2px 0;
+}
+
+.agent-content code {
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.agent-content strong {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .error-content {
