@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
-import { auth } from '../lib/api'
+import { auth, setToken } from '../lib/api'
 import { Shield } from 'lucide-react'
+import './Login.css'
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const [isSetup, setIsSetup] = useState<boolean | null>(null)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,29 +18,26 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (!isSetup && password !== confirm) {
+      setError('Passwords do not match')
+      return
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
     setLoading(true)
-
     try {
-      if (!isSetup) {
-        // First-time setup
-        if (password !== confirmPassword) {
-          setError('Passwords do not match')
-          setLoading(false)
-          return
-        }
-        if (password.length < 8) {
-          setError('Password must be at least 8 characters')
-          setLoading(false)
-          return
-        }
-        const res = await auth.setup(username, password)
-        auth.setToken(res.token)
+      let result: { token?: string; success?: boolean }
+      if (isSetup) {
+        result = await auth.login(username, password)
       } else {
-        // Login
-        const res = await auth.login(username, password)
-        auth.setToken(res.token)
+        result = await auth.setup(username, password)
       }
-      onLogin()
+      if (result.token) {
+        setToken(result.token)
+        onLogin()
+      }
     } catch (err: any) {
       setError(err.message || 'Authentication failed')
     } finally {
@@ -47,20 +45,32 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     }
   }
 
-  if (isSetup === null) return null // Loading
+  if (isSetup === null) return (
+    <div className="login-container">
+      <div className="login-loading">Connecting...</div>
+    </div>
+  )
 
   return (
     <div className="login-container">
-      <div className="login-card glass-card">
-        <div className="login-header">
-          <Shield size={40} color="var(--violet)" />
+      <div className="login-card">
+        <div className="login-logo">
+          <div className="logo-orb">
+            <Shield size={28} />
+          </div>
           <h1>CIPHER-OS</h1>
-          <p className="mono">{isSetup ? 'COMMAND CENTER LOGIN' : 'INITIAL SETUP'}</p>
+          <p className="login-tagline">Command Center</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="input-group">
-            <label className="mono">USERNAME</label>
+        {!isSetup && (
+          <div className="setup-banner">
+            Initial Setup — create your admin credentials
+          </div>
+        )}
+
+        <form className="login-form" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Username</label>
             <input
               type="text"
               value={username}
@@ -71,8 +81,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             />
           </div>
 
-          <div className="input-group">
-            <label className="mono">PASSWORD</label>
+          <div className="form-group">
+            <label>Password</label>
             <input
               type="password"
               value={password}
@@ -83,12 +93,12 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           </div>
 
           {!isSetup && (
-            <div className="input-group">
-              <label className="mono">CONFIRM PASSWORD</label>
+            <div className="form-group">
+              <label>Confirm Password</label>
               <input
                 type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
                 placeholder="••••••••"
                 required
               />
@@ -97,16 +107,10 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
           {error && <div className="login-error">{error}</div>}
 
-          <button type="submit" disabled={loading} className="login-button">
-            {loading ? 'Authenticating...' : isSetup ? 'Login' : 'Create Account'}
+          <button type="submit" className="login-btn" disabled={loading}>
+            {loading ? 'Please wait...' : isSetup ? 'Sign In' : 'Create Account'}
           </button>
         </form>
-
-        {!isSetup && (
-          <p className="setup-note">
-            First time? Create your admin credentials above.
-          </p>
-        )}
       </div>
     </div>
   )

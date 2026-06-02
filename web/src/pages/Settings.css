@@ -1,0 +1,65 @@
+.settings-page {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.settings-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.settings-section h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: var(--space-lg);
+  padding-bottom: var(--space-md);
+  border-bottom: 1px solid var(--border-card);
+}
+
+.settings-entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.settings-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-lg);
+  padding: var(--space-sm) 0;
+}
+
+.settings-key {
+  color: var(--muted);
+  min-width: 160px;
+  font-size: 11px;
+  padding-top: 3px;
+}
+
+.settings-value {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.settings-loading {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .settings-entry {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .settings-key {
+    min-width: unset;
+  }
+}

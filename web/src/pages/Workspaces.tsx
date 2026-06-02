@@ -1,30 +1,72 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { api } from '../lib/api'
-import { FolderOpen } from 'lucide-react'
+import { FolderOpen, Plus } from 'lucide-react'
+import './Workspaces.css'
 
 export default function Workspaces() {
-  const { data: workspaces = [] } = useQuery({ queryKey: ['workspaces'], queryFn: api.getWorkspaces })
+  const { data: workspaces = [], refetch } = useQuery({
+    queryKey: ['workspaces'],
+    queryFn: api.getWorkspaces,
+  })
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return
+    await api.createWorkspace(newName.trim().toLowerCase())
+    setNewName('')
+    setCreating(false)
+    refetch()
+  }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 24 }}>Workspaces</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {workspaces.map((ws: any) => (
-          <div key={ws.name} className="glass-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-              <FolderOpen size={20} style={{ color: 'var(--cyan)' }} />
-              <span className="mono" style={{ fontSize: 14, fontWeight: 600 }}>{ws.name.toUpperCase()}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 24, fontSize: 12, color: 'var(--muted)' }}>
-              <span>Projects: {ws.project_count || 0}</span>
-              <span>Cost: ${(ws.cost_total || 0).toFixed(2)}</span>
-            </div>
+    <div className="workspaces-page">
+      <div className="page-header">
+        <div>
+          <h1>Workspaces</h1>
+          <p className="page-subtitle">Isolated environments for your projects</p>
+        </div>
+        <button className="create-btn" onClick={() => setCreating(true)}>
+          <Plus size={16} />
+          <span>New Workspace</span>
+        </button>
+      </div>
+
+      {creating && (
+        <div className="create-workspace glass-card">
+          <input
+            type="text"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            placeholder="workspace-name"
+            autoFocus
+            className="workspace-input"
+          />
+          <button onClick={handleCreate} className="create-confirm-btn">Create</button>
+          <button onClick={() => setCreating(false)} className="create-cancel-btn">Cancel</button>
+        </div>
+      )}
+
+      <div className="workspaces-grid">
+        {workspaces.length === 0 ? (
+          <div className="empty-state glass-card">
+            <FolderOpen size={32} color="var(--muted)" />
+            <p>No workspaces yet. Create one to get started.</p>
           </div>
-        ))}
-        {workspaces.length === 0 && (
-          <div className="glass-card" style={{ textAlign: 'center', color: 'var(--muted)', padding: 32 }}>
-            No workspaces yet. Create one to get started.
-          </div>
+        ) : (
+          workspaces.map((ws: any) => (
+            <div key={ws.name || ws} className="workspace-card glass-card">
+              <div className="workspace-icon">
+                <FolderOpen size={20} color="var(--cyan)" />
+              </div>
+              <div className="workspace-info">
+                <h3>{typeof ws === 'string' ? ws : ws.name}</h3>
+                <p className="mono">WORKSPACE</p>
+              </div>
+            </div>
+          ))
         )}
       </div>
     </div>

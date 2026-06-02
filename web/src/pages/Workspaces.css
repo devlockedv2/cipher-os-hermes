@@ -1,0 +1,127 @@
+.workspaces-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--space-xl);
+}
+
+.create-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--violet-glow);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.create-btn:hover {
+  background: rgba(139, 92, 246, 0.25);
+  border-color: var(--violet);
+}
+
+.create-workspace {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+}
+
+.workspace-input {
+  flex: 1;
+  padding: 10px 14px;
+  background: rgba(21, 21, 31, 0.8);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+}
+
+.workspace-input:focus {
+  border-color: var(--violet);
+}
+
+.create-confirm-btn {
+  padding: 10px 16px;
+  background: rgba(94, 226, 181, 0.15);
+  border: 1px solid rgba(94, 226, 181, 0.3);
+  border-radius: var(--radius-sm);
+  color: var(--mint);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.create-cancel-btn {
+  padding: 10px 16px;
+  background: none;
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workspaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+
+.workspace-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  transition: border-color 0.2s;
+  cursor: pointer;
+}
+
+.workspace-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.workspace-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: rgba(125, 211, 252, 0.08);
+}
+
+.workspace-info h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.workspace-info p {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .workspaces-grid {
+    grid-template-columns: 1fr;
+  }
+}

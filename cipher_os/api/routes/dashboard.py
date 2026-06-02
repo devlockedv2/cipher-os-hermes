@@ -24,6 +24,9 @@ async def get_dashboard():
             "status": "idle",
             "current_task": None,
             "workspace": None,
+            "tasks_completed": 0,
+            "total_cost": 0.0,
+            "uptime": "—",
         }
         for name in AGENT_NAMES
     ]
@@ -31,6 +34,8 @@ async def get_dashboard():
     return {
         "agents": agents,
         "recent_activity": recent_activity,
+        "active_tickets": 0,
+        "cost_today": global_stats.get("total_cost", 0),
         "workspaces": [{"name": ws["name"], "project_count": ws["project_count"]} for ws in workspaces],
         "stats": global_stats,
         "system_health": {

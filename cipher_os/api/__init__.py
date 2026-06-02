@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .middleware import JWTAuthMiddleware
+from .middleware import AuthMiddleware as JWTAuthMiddleware
 from .routes import dashboard, agents, tickets, workspaces, activity, settings, chat
 from .routes import auth as auth_routes
 from .websocket import ConnectionManager

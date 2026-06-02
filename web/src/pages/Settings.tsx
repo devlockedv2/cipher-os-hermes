@@ -1,26 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../lib/api'
+import { Settings as SettingsIcon } from 'lucide-react'
+import './Settings.css'
 
 export default function Settings() {
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: api.getSettings })
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      <h1 style={{ marginBottom: 24 }}>Settings</h1>
-      <div className="glass-card">
-        <h3 style={{ marginBottom: 16 }}>Configuration</h3>
-        <pre style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 12,
-          color: 'var(--text)',
-          background: 'rgba(0,0,0,0.3)',
-          padding: 16,
-          borderRadius: 'var(--radius-sm)',
-          overflow: 'auto',
-          maxHeight: 500,
-        }}>
-          {JSON.stringify(settings, null, 2)}
-        </pre>
+    <div className="settings-page">
+      <div className="page-header">
+        <h1>Settings</h1>
+        <p className="page-subtitle">Global configuration for CIPHER-OS</p>
+      </div>
+
+      <div className="settings-grid">
+        <div className="settings-section glass-card">
+          <h3><SettingsIcon size={16} /> General</h3>
+          {settings ? (
+            <div className="settings-entries">
+              {Object.entries(settings).map(([key, value]) => (
+                <div key={key} className="settings-entry">
+                  <span className="settings-key mono">{key.toUpperCase()}</span>
+                  <span className="settings-value">
+                    {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="settings-loading">Loading configuration...</p>
+          )}
+        </div>
       </div>
     </div>
   )

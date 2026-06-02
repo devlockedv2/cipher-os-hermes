@@ -1,0 +1,131 @@
+.tickets-page {
+  max-width: 100%;
+}
+
+.kanban-board {
+  display: flex;
+  gap: var(--space-md);
+  overflow-x: auto;
+  padding-bottom: var(--space-md);
+  min-height: calc(100vh - 200px);
+}
+
+.kanban-column {
+  min-width: 240px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.kanban-column-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+
+.kanban-column-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.kanban-column-title {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.kanban-column-count {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.kanban-column-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.kanban-empty {
+  padding: var(--space-xl) var(--space-md);
+  text-align: center;
+  color: var(--muted);
+  font-size: 10px;
+  border: 1px dashed var(--border-card);
+  border-radius: var(--radius-sm);
+}
+
+.ticket-card {
+  padding: var(--space-md);
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.1s;
+}
+
+.ticket-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.ticket-id {
+  color: var(--violet-glow);
+  margin-bottom: 6px;
+  font-size: 10px;
+}
+
+.ticket-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: var(--space-sm);
+}
+
+.ticket-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.ticket-assignee {
+  color: var(--cyan);
+  font-size: 10px;
+}
+
+.ticket-priority {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.ticket-priority--1 { background: rgba(242, 109, 109, 0.15); color: var(--red); }
+.ticket-priority--2 { background: rgba(245, 181, 68, 0.15); color: var(--amber); }
+.ticket-priority--3 { background: rgba(125, 211, 252, 0.1); color: var(--cyan); }
+.ticket-priority--4 { background: rgba(138, 138, 155, 0.1); color: var(--muted); }
+.ticket-priority--5 { background: rgba(138, 138, 155, 0.1); color: var(--muted); }
+
+.ticket-estimate {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+/* Mobile: stack columns vertically */
+@media (max-width: 768px) {
+  .kanban-board {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .kanban-column {
+    min-width: unset;
+  }
+
+  .kanban-column-body {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+}

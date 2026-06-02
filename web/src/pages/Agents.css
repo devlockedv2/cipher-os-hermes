@@ -1,0 +1,105 @@
+.agents-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: var(--space-xl);
+}
+
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  transition: border-color 0.2s;
+}
+
+.agent-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agent-card-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.agent-card-body {
+  flex: 1;
+}
+
+.agent-card-name {
+  font-size: 18px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.agent-card-role {
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.agent-card-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: var(--space-sm);
+  line-height: 1.5;
+}
+
+.agent-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-card);
+}
+
+.agent-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-stat-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.agent-stat-label {
+  color: var(--muted);
+}
+
+@media (max-width: 768px) {
+  .agents-grid {
+    grid-template-columns: 1fr;
+  }
+}

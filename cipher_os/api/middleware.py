@@ -1,60 +1,50 @@
 """Auth middleware — JWT token validation for all protected routes."""
 
-from fastapi import Request, HTTPException
+from fastapi import Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .auth import verify_token, is_setup
+from .auth import verify_token
 
-
-# Paths that don't require authentication
+# Routes that do NOT require authentication
 PUBLIC_PATHS = {
-    "/api/v1/health",
-    "/api/v1/auth/login",
-    "/api/v1/auth/setup",
     "/api/v1/auth/status",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
+    "/api/v1/auth/setup",
+    "/api/v1/auth/login",
+    "/api/v1/health",
 }
 
-# Prefixes that are always public (static assets, SPA)
-PUBLIC_PREFIXES = ("/assets/", "/favicon")
 
-
-class JWTAuthMiddleware(BaseHTTPMiddleware):
-    """Require valid JWT for all API routes (except login/setup/health)."""
-
+class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        # Public paths — no auth needed
+        # Always allow public API paths
         if path in PUBLIC_PATHS:
             return await call_next(request)
 
-        # Public prefixes (static assets)
-        if any(path.startswith(p) for p in PUBLIC_PREFIXES):
-            return await call_next(request)
-
-        # Non-API paths (SPA frontend) — serve without auth
-        # The frontend handles login redirect client-side
+        # Always allow static assets and SPA routes
         if not path.startswith("/api/"):
             return await call_next(request)
 
-        # WebSocket — auth handled at connection level
-        if path == "/ws":
-            return await call_next(request)
+        # Require JWT for all other /api/ routes
+        token = None
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
 
-        # All other API routes require JWT
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        if not token:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Authentication required"},
+            )
 
-        token = auth_header.removeprefix("Bearer ")
         username = verify_token(token)
-
         if not username:
-            raise HTTPException(status_code=401, detail="Invalid or expired token")
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"},
+            )
 
-        # Attach user to request state
-        request.state.user = username
+        request.state.username = username
         return await call_next(request)
