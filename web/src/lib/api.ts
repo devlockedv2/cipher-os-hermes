@@ -63,22 +63,18 @@ export const api = {
   getDashboard: () => fetchAPI<any>('/dashboard'),
   getAgents: () => fetchAPI<any[]>('/agents'),
   getAgent: (name: string) => fetchAPI<any>(`/agents/${name}`),
-  updateAgentConfig: (name: string, data: {
-    model?: string
-    max_cost?: number
-    routing_weight?: number
-    enabled?: boolean
-    timeout?: number
-  }) => fetchAPI<any>(`/agents/${name}/config`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  }),
-  updatePersonality: (name: string, content: string) =>
+  getAgentActivity: (name: string) => fetchAPI<any>(`/agents/${name}/activity`),
+  updateAgentConfig: (name: string, config: any) =>
+    fetchAPI<any>(`/agents/${name}/config`, {
+      method: 'PUT',
+      body: JSON.stringify(config),
+    }),
+  updateAgentPersonality: (name: string, content: string) =>
     fetchAPI<any>(`/agents/${name}/personality`, {
       method: 'PUT',
       body: JSON.stringify({ content }),
     }),
-  resetPersonality: (name: string) =>
+  resetAgentPersonality: (name: string) =>
     fetchAPI<any>(`/agents/${name}/personality`, { method: 'DELETE' }),
 
   getTickets: (workspace: string = 'default') =>

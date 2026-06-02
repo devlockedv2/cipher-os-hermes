@@ -6,6 +6,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
+import AgentDetail from './pages/AgentDetail'
 import Tickets from './pages/Tickets'
 import Workspaces from './pages/Workspaces'
 import Activity from './pages/Activity'
@@ -39,6 +40,7 @@ export default function App() {
           <Route path="/" element={<Layout onLogout={handleLogout} />}>
             <Route index element={<Dashboard />} />
             <Route path="agents" element={<Agents />} />
+            <Route path="agents/:name" element={<AgentDetail />} />
             <Route path="tickets" element={<Tickets />} />
             <Route path="workspaces" element={<Workspaces />} />
             <Route path="activity" element={<Activity />} />

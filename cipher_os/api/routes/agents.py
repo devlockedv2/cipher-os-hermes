@@ -6,6 +6,7 @@ from typing import Optional
 
 from ...agents import AGENT_NAMES, AGENT_ROLES, AGENT_COLORS, get_agent_personality, get_agent_status
 from ...core.config import get_cipher_home, load_config, save_config
+from ...activity.log import query as query_activity, stats as activity_stats
 
 router = APIRouter()
 
@@ -157,3 +158,14 @@ async def reset_personality(agent_name: str):
         local_path.unlink()
 
     return {"success": True, "message": f"Prompt reset to default for {agent_name}"}
+
+
+@router.get("/{agent_name}/activity")
+async def get_agent_activity(agent_name: str, limit: int = 20):
+    """Get recent activity log entries for an agent."""
+    if agent_name not in AGENT_NAMES:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    entries = query_activity(agent=agent_name, limit=limit)
+    s = activity_stats(agent=agent_name)
+    return {"entries": entries, "stats": s}
+
