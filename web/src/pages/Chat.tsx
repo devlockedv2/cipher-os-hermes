@@ -104,10 +104,13 @@ export default function Chat() {
   }, [connect])
 
   // ── Event handler ──────────────────────────────────────────────────────
+  const routedRef = useRef(false)
+
   const handleEvent = (event: { type: string; [key: string]: unknown }) => {
     switch (event.type) {
       case 'thinking': {
-        // Agent is starting up — show/refresh typing indicator
+        // Only show dots before routing — once routing card + streaming bubble exist, cursor is enough
+        if (routedRef.current) break
         setMessages(prev => {
           const last = prev[prev.length - 1]
           if (last?.role === 'thinking') return prev // already showing
@@ -116,6 +119,7 @@ export default function Chat() {
         break
       }
       case 'routing': {
+        routedRef.current = true
         const agent = event.agent as string
         setMessages(prev => {
           const filtered = prev.filter(m => m.role !== 'thinking')
@@ -218,6 +222,7 @@ export default function Chat() {
     setMessages(prev => [...prev, { role: 'user', content: trimmed }])
     setInput('')
     setBusy(true)
+    routedRef.current = false  // reset for new message
 
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
