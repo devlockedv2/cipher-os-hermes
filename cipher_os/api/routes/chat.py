@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import re
 import time
 from typing import Optional
@@ -12,12 +13,15 @@ from pydantic import BaseModel
 from ...agents import run_agent_streaming, AGENT_NAMES
 from ...core.config import load_config, get_cipher_home, get_linear_api_key
 from ...activity.log import log as activity_log
+from ...tickets import create_ticket, update_ticket
 from ...integrations.linear import (
     get_open_issues,
     create_issue as linear_create_issue,
     get_teams,
     format_issues_for_context,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -265,33 +269,62 @@ async def chat_websocket(ws: WebSocket):
                     if clean:
                         await ws.send_json({"type": "token", "content": clean})
 
-                # Handle [TICKET:type:title] markers — Cipher decided work needs tracking
+                # Handle [TICKET:type:title] markers — always write to local board, optionally to Linear
                 for match in TICKET_RE.finditer(full_response):
-                    ticket_type, ticket_title = match.group(1).lower(), match.group(2).strip()
-                    api_key = get_linear_api_key(workspace)
-                    if not api_key:
-                        continue  # Linear not configured, skip silently
+                    ticket_type = match.group(1).lower()
+                    ticket_title = match.group(2).strip()
+                    linear_identifier = None
+                    linear_url = None
+
+                    # Always create in local SQLite board
                     try:
-                        # Get first available team for this workspace
-                        teams = get_teams(api_key)
-                        if not teams:
-                            continue
-                        team_id = teams[0]["id"]
-                        issue = linear_create_issue(
-                            api_key=api_key,
-                            team_id=team_id,
+                        local_ticket = create_ticket(
+                            workspace=workspace,
                             title=ticket_title[:120],
-                            description=f"*Created by Cipher*\n\nContext: {message[:300]}",
-                            priority=3,  # medium
+                            type=ticket_type,
+                            created_by="cipher",
+                            description=f"Created by Cipher\n\nContext: {message[:300]}",
+                            priority=3,
                         )
-                        await ws.send_json({
-                            "type": "ticket_created",
-                            "ticket_id": issue.get("identifier", ""),
-                            "title": ticket_title,
-                            "url": issue.get("url", ""),
-                        })
-                    except Exception:
-                        pass
+                        local_ticket_id = local_ticket.get("id", "")
+                    except Exception as e:
+                        logger.warning(f"Failed to create local ticket: {e}")
+                        local_ticket_id = ""
+
+                    # Also push to Linear if configured
+                    api_key = get_linear_api_key(workspace)
+                    if api_key:
+                        try:
+                            teams = get_teams(api_key)
+                            if teams:
+                                issue = linear_create_issue(
+                                    api_key=api_key,
+                                    team_id=teams[0]["id"],
+                                    title=ticket_title[:120],
+                                    description=f"*Created by Cipher*\n\nContext: {message[:300]}",
+                                    priority=3,
+                                )
+                                linear_identifier = issue.get("identifier", "")
+                                linear_url = issue.get("url", "")
+                                # backfill linear fields onto the local ticket
+                                if local_ticket_id and linear_identifier:
+                                    try:
+                                        update_ticket(
+                                            workspace=workspace,
+                                            ticket_id=local_ticket_id,
+                                            changed_by="cipher",
+                                        )
+                                    except Exception:
+                                        pass
+                        except Exception as e:
+                            logger.warning(f"Linear ticket creation failed: {e}")
+
+                    await ws.send_json({
+                        "type": "ticket_created",
+                        "ticket_id": linear_identifier or local_ticket_id,
+                        "title": ticket_title,
+                        "url": linear_url or "",
+                    })
 
                 # Handle [DELEGATE:agent:task] markers — Cipher is delegating work
                 for match in DELEGATE_RE.finditer(full_response):
