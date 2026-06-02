@@ -5,9 +5,11 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import AsyncIterator, Optional
 
 import httpx
+import yaml
 
 from ..core.config import get_cipher_home, load_config
 
@@ -92,20 +94,38 @@ async def gateway_health(agent: str) -> bool:
         return False
 
 
+def _load_agent_personality(agent: str) -> str:
+    """Load agent personality from Hermes profile config.yaml (agent.system_prompt)."""
+    try:
+        profile_cfg = Path.home() / ".hermes" / "profiles" / agent / "config.yaml"
+        if profile_cfg.exists():
+            with open(profile_cfg) as f:
+                cfg = yaml.safe_load(f) or {}
+            return str(cfg.get("agent", {}).get("system_prompt", "") or "").strip()
+    except Exception:
+        pass
+    # Fallback: personality.md in cipher-os data dir
+    try:
+        p = get_cipher_home() / "agents" / agent / "personality.md"
+        if p.exists():
+            return p.read_text().strip()
+    except Exception:
+        pass
+    return ""
+
+
 async def _ensure_session(client: httpx.AsyncClient, agent: str, session_id: str) -> None:
     """Create the session if it doesn't exist yet."""
     url = get_gateway_url(agent)
     headers = _gateway_headers()
-    # Check if it exists
     r = await client.get(f"{url}/api/sessions/{session_id}", headers=headers)
     if r.status_code == 404:
-        # Create it
-        await client.post(
-            f"{url}/api/sessions",
-            headers=headers,
-            json={"id": session_id},
-        )
-        logger.info("[%s] Created session %s", agent, session_id)
+        personality = _load_agent_personality(agent)
+        payload: dict = {"id": session_id}
+        if personality:
+            payload["system_prompt"] = personality
+        await client.post(f"{url}/api/sessions", headers=headers, json=payload)
+        logger.info("[%s] Created session %s (personality: %d chars)", agent, session_id, len(personality))
 
 
 async def run_agent_streaming(
@@ -133,9 +153,16 @@ async def run_agent_streaming(
     url = get_gateway_url(agent)
     stream_url = f"{url}/api/sessions/{session_id}/chat/stream"
 
+    # Always inject personality as per-call system_message override —
+    # this ensures the agent uses the correct personality regardless of
+    # what system_prompt was baked into the session at creation time.
+    personality = _load_agent_personality(agent)
     payload: dict = {"message": task}
+    if personality:
+        payload["instructions"] = personality  # per-call system prompt override
     if system_prompt_extra:
-        payload["ephemeral_system_prompt"] = system_prompt_extra
+        # Append extra context after personality
+        payload["instructions"] = (payload.get("instructions", "") + "\n\n" + system_prompt_extra).strip()
 
     headers = _gateway_headers()
     headers["Accept"] = "text/event-stream"

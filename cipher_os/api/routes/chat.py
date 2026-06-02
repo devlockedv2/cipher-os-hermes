@@ -85,13 +85,38 @@ async def _heartbeat(ws: WebSocket, interval: float = 4.0):
 # [TICKET:type:title]
 DELEGATE_RE = re.compile(r'\[DELEGATE:(\w+):([^\]]+)\]', re.IGNORECASE)
 TICKET_RE   = re.compile(r'\[TICKET:([\w]+):([^\]]+)\]', re.IGNORECASE)
+TICKETS_QUERY_RE = re.compile(r'\[TICKETS:([^\]]+)\]', re.IGNORECASE)
 
 
 def _strip_markers(text: str) -> str:
     """Remove structural markers from text before sending to user."""
     text = DELEGATE_RE.sub('', text)
     text = TICKET_RE.sub('', text)
+    text = TICKETS_QUERY_RE.sub('', text)
     return text.strip()
+
+
+def _format_tickets_result(workspace: str) -> str:
+    """Fetch tickets and return a compact result block Cipher can read."""
+    try:
+        all_tickets = query_tickets(workspace=workspace)
+        open_tickets = [t for t in all_tickets if t.get("status") not in ("done", "cancelled")]
+    except Exception as e:
+        return f"[TICKETS_RESULT: error fetching tickets — {e}]"
+
+    if not open_tickets:
+        return f"[TICKETS_RESULT: no open tickets in workspace `{workspace}`]"
+
+    priority_map = {1: "critical", 2: "high", 3: "medium", 4: "low", 5: "minor"}
+    lines = [f"[TICKETS_RESULT: {len(open_tickets)} open ticket(s) in `{workspace}`]"]
+    for t in open_tickets[:30]:
+        pri = priority_map.get(t.get("priority", 3), "medium")
+        assigned = t.get("assigned_to") or "unassigned"
+        lines.append(
+            f"- **{t['id']}** [{t['status']}] [{pri}] {t['title']} "
+            f"(type: {t['type']}, assigned: {assigned})"
+        )
+    return "\n".join(lines)
 
 
 class ChatMessage(BaseModel):
@@ -160,10 +185,9 @@ async def chat_websocket(ws: WebSocket):
             start_time = time.time()
             full_response_parts = []
 
-            # Build workspace context — prepended to the user message so Cipher
-            # always has fresh workspace/ticket state regardless of session caching
-            workspace_ctx = _build_workspace_context(workspace) if primary_agent == "cipher" else None
-            task_with_ctx = f"{workspace_ctx}\n\n---\n\n**User:** {message}" if workspace_ctx else message
+            # Workspace context is NOT injected upfront — Cipher fetches tickets
+            # on demand via [TICKETS:workspace] marker, keeping unrelated prompts lean.
+            task_with_ctx = message
 
             # Send a heartbeat every 3 seconds while waiting for first token
             heartbeat_task = asyncio.create_task(_heartbeat(ws))
@@ -181,7 +205,11 @@ async def chat_websocket(ws: WebSocket):
                         if cleaned:
                             await ws.send_json({"type": "token", "content": cleaned})
                         full_response_parts.append(event["content"])  # keep raw for parsing
-                    elif event["type"] in ("done", "error"):
+                    elif event["type"] == "done":
+                        # Don't send done yet — the [TICKETS:] handler may send more tokens
+                        # We'll send done after all post-processing is complete
+                        break
+                    elif event["type"] == "error":
                         await ws.send_json(event)
                         break
 
@@ -190,9 +218,45 @@ async def chat_websocket(ws: WebSocket):
                 await ws.send_json({"type": "error", "content": str(e)})
 
             full_response = "".join(full_response_parts)
+            sent_done = False  # track whether we've sent done to the client
 
             # --- Parse Cipher's output for action markers ---
             if primary_agent == "cipher":
+                # Handle [TICKETS:workspace] — Cipher wants to fetch tickets,
+                # inject result back and let Cipher continue with that context
+                tickets_match = TICKETS_QUERY_RE.search(full_response)
+                if tickets_match:
+                    query_ws = tickets_match.group(1).strip() or workspace
+                    result = _format_tickets_result(query_ws)
+                    follow_up = f"[System: ticket query result]\n{result}\n\nNow answer the user's question using this data."
+                    follow_parts = []
+                    hb2 = asyncio.create_task(_heartbeat(ws))
+                    try:
+                        async for event in run_agent_streaming(
+                            agent="cipher",
+                            task=follow_up,
+                            workspace=workspace,
+                        ):
+                            if event["type"] == "token":
+                                hb2.cancel()
+                                cleaned = _strip_markers(event["content"])
+                                if cleaned:
+                                    await ws.send_json({"type": "token", "content": cleaned})
+                                follow_parts.append(event["content"])
+                            elif event["type"] == "done":
+                                await ws.send_json(event)
+                                sent_done = True
+                                break
+                            elif event["type"] == "error":
+                                await ws.send_json(event)
+                                sent_done = True
+                                break
+                    except Exception as e:
+                        hb2.cancel()
+                        await ws.send_json({"type": "error", "content": str(e)})
+                        sent_done = True
+                    full_response = "".join(follow_parts)
+
                 # Handle [TICKET:type:title] markers — Cipher decided work needs tracking
                 for match in TICKET_RE.finditer(full_response):
                     ticket_type, ticket_title = match.group(1).lower(), match.group(2).strip()
@@ -265,6 +329,13 @@ async def chat_websocket(ws: WebSocket):
                 )
             except Exception:
                 pass
+
+            # Send final done if not already sent by ticket/delegate handlers
+            if not sent_done:
+                try:
+                    await ws.send_json({"type": "done", "content": ""})
+                except Exception:
+                    pass
 
     except WebSocketDisconnect:
         pass
