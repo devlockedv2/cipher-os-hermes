@@ -237,6 +237,27 @@ PYEOF
 
 success "Hermes integration configured"
 
+# Copy agent personality prompts
+log "Installing agent personalities..."
+for agent in cipher lens atlas forge sentinel; do
+  AGENT_DIR="$CIPHER_HOME/agents/$agent"
+  mkdir -p "$AGENT_DIR"
+  SRC="$INSTALL_DIR/templates/agents/$agent/personality.md"
+  DEST="$AGENT_DIR/personality.md"
+  if [ -f "$SRC" ]; then
+    # Only install if no file exists yet (don't overwrite user customisations)
+    if [ ! -f "$DEST" ]; then
+      cp "$SRC" "$DEST"
+      log "  $agent: installed"
+    else
+      log "  $agent: skipped (custom prompt exists)"
+    fi
+  else
+    warn "  $agent: template not found at $SRC"
+  fi
+done
+success "Agent personalities installed"
+
 step "[ 6 / 7 ]  Setting up system service"
 
 if [ "$SKIP_SERVICE" = true ]; then
