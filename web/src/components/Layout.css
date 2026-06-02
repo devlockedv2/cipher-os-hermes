@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh; /* dynamic viewport — accounts for mobile browser chrome */
   position: relative;
   z-index: 1;
 }
@@ -123,6 +124,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 
 /* Mobile */
@@ -168,7 +170,12 @@
   }
 
   .main-content {
-    padding: var(--space-md);
+    padding: 12px;
+    overflow: hidden;
+  }
+
+  .scrollable-page {
+    padding-bottom: 24px;
   }
 
   .main-content:has(.chat-page) {
