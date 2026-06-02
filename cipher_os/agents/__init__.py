@@ -235,19 +235,22 @@ async def run_agent_streaming(
             cwd=workdir,
         )
 
-        # Stream stdout line by line
+        # Stream stdout — Hermes -Q batches the full response at process end,
+        # so we read the complete output then simulate streaming word-by-word.
         assert proc.stdout
-        buffer = ""
-        async for chunk in _read_chunks(proc.stdout):
-            buffer += chunk
-            # Yield in reasonable token-sized pieces
-            while len(buffer) >= 4:
-                yield {"type": "token", "content": buffer[:64]}
-                buffer = buffer[64:]
+        raw_output = await proc.stdout.read()
+        full_text = raw_output.decode("utf-8", errors="replace")
 
-        # Flush remainder
-        if buffer:
-            yield {"type": "token", "content": buffer}
+        # Simulate token streaming — split into word-sized chunks and yield
+        # with a small delay so the UI renders progressively
+        words = full_text.split(" ")
+        chunk = ""
+        for i, word in enumerate(words):
+            chunk += ("" if i == 0 else " ") + word
+            if len(chunk) >= 40 or i == len(words) - 1:
+                yield {"type": "token", "content": chunk}
+                chunk = ""
+                await asyncio.sleep(0.015)  # ~65 chunks/sec feels natural
 
         # Wait for process to finish
         await proc.wait()
