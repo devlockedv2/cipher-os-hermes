@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
   CircleDot, Search, Compass, Hammer, Shield,
-  Activity, Cpu, DollarSign, Ticket
+  Activity, Cpu, DollarSign, Ticket, ChevronRight
 } from 'lucide-react'
 import './Dashboard.css'
 
@@ -24,6 +25,7 @@ const AGENT_COLORS: Record<string, string> = {
 
 export default function Dashboard() {
   const { data } = useQuery({ queryKey: ['dashboard'], queryFn: api.getDashboard })
+  const navigate = useNavigate()
 
   if (!data) return <div className="loading">Loading...</div>
 
@@ -63,67 +65,68 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Grid */}
-      <div className="dashboard-grid">
-        {/* Agent Status Panel */}
-        <div className="glass-card agents-panel">
-          <h2 className="panel-title">Agent Fleet</h2>
-          <div className="agents-list">
-            {agents.map((agent: any) => {
-              const Icon = AGENT_ICONS[agent.name] || CircleDot
-              const color = AGENT_COLORS[agent.name] || 'var(--muted)'
-              return (
-                <div key={agent.name} className="agent-row">
-                  <div className="agent-identity">
-                    <div className="agent-icon" style={{ color, borderColor: color }}>
-                      <Icon size={16} />
-                    </div>
-                    <div>
-                      <div className="agent-name">{agent.name}</div>
-                      <div className="agent-role mono">{agent.role}</div>
-                    </div>
-                  </div>
-                  <span className={`status-pill status-pill--${agent.status}`}>
-                    <span className={`status-dot status-dot--${agent.status}`} />
-                    {agent.status}
-                  </span>
+      {/* Agent Quick-Glance Cards */}
+      <div className="agent-cards-row">
+        {agents.map((agent: any) => {
+          const Icon = AGENT_ICONS[agent.name] || CircleDot
+          const color = AGENT_COLORS[agent.name] || 'var(--muted)'
+          return (
+            <button
+              key={agent.name}
+              className="agent-glance-card glass-card"
+              onClick={() => navigate(`/agents?open=${agent.name}`)}
+              style={{ '--agent-color': color } as any}
+            >
+              <div className="agc-header">
+                <div className="agc-icon" style={{ color, background: `${color}18`, borderColor: `${color}44` }}>
+                  <Icon size={16} />
                 </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Activity Feed */}
-        <div className="glass-card activity-panel">
-          <h2 className="panel-title">Recent Activity</h2>
-          <div className="activity-feed">
-            {recent_activity && recent_activity.length > 0 ? (
-              recent_activity.slice(0, 8).map((item: any, i: number) => (
-                <div key={i} className="activity-item">
-                  <div className="activity-dot" style={{
-                    background: item.status === 'completed' ? 'var(--mint)' :
-                                item.status === 'running' ? 'var(--cyan)' :
-                                item.status === 'failed' ? 'var(--red)' : 'var(--muted)'
-                  }} />
-                  <div className="activity-content">
-                    <div className="activity-task">{item.task || item.description || 'Task'}</div>
-                    <div className="activity-meta mono">
-                      {item.agent && <span>{item.agent}</span>}
-                      {item.workspace && <span>• {item.workspace}</span>}
-                    </div>
-                  </div>
-                  {item.cost > 0 && (
-                    <div className="activity-cost mono">${item.cost.toFixed(3)}</div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="empty-state">
-                <Activity size={24} color="var(--muted)" />
-                <p>No activity yet. Send a task to get started.</p>
+                <ChevronRight size={13} className="agc-arrow" />
               </div>
-            )}
-          </div>
+              <div className="agc-name">{agent.name}</div>
+              <div className="agc-role mono">{agent.role.split('—')[0].trim()}</div>
+              <div className="agc-footer">
+                <span className={`agc-status agc-status--${agent.enabled === false ? 'disabled' : agent.status}`}>
+                  <span className="agc-dot" />
+                  {agent.enabled === false ? 'off' : (agent.status || 'idle')}
+                </span>
+                <span className="agc-cost mono">${(agent.total_cost || 0).toFixed(2)}</span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Activity Feed */}
+      <div className="glass-card activity-panel">
+        <h2 className="panel-title">Recent Activity</h2>
+        <div className="activity-feed">
+          {recent_activity && recent_activity.length > 0 ? (
+            recent_activity.slice(0, 8).map((item: any, i: number) => (
+              <div key={i} className="activity-item">
+                <div className="activity-dot" style={{
+                  background: item.status === 'completed' ? 'var(--mint)' :
+                              item.status === 'running' ? 'var(--cyan)' :
+                              item.status === 'failed' ? 'var(--red)' : 'var(--muted)'
+                }} />
+                <div className="activity-content">
+                  <div className="activity-task">{item.task || item.description || 'Task'}</div>
+                  <div className="activity-meta mono">
+                    {item.agent && <span>{item.agent}</span>}
+                    {item.workspace && <span>• {item.workspace}</span>}
+                  </div>
+                </div>
+                {item.cost > 0 && (
+                  <div className="activity-cost mono">${item.cost.toFixed(3)}</div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="empty-state">
+              <Activity size={24} color="var(--muted)" />
+              <p>No activity yet. Send a task to get started.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
   CircleDot, Search, Compass, Hammer, Shield,
@@ -17,6 +18,13 @@ const AGENT_ICONS: Record<string, React.ElementType> = {
 
 export default function Agents() {
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [searchParams] = useSearchParams()
+
+  // Open agent from ?open= query param (e.g. from dashboard cards)
+  useEffect(() => {
+    const openAgent = searchParams.get('open')
+    if (openAgent) setExpanded(openAgent)
+  }, [searchParams])
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ['agents'],
