@@ -405,35 +405,108 @@ function ChatBubble({ msg }: { msg: Message }) {
     )
   }
 
-  // Render markdown-lite: bold, inline code, bullet lists, newlines
+  // Full markdown-lite renderer
   const renderContent = (text: string) => {
-    // Split into lines, process each
     const lines = text.split('\n')
     const output: string[] = []
-    let inList = false
+    let inUl = false
+    let inOl = false
+    let inCode = false
+    let codeLang = ''
+    let codeLines: string[] = []
+    let inTable = false
+    let tableRows: string[][] = []
 
-    for (const line of lines) {
-      const bulletMatch = line.match(/^[-*]\s+(.+)/)
-      if (bulletMatch) {
-        if (!inList) { output.push('<ul>'); inList = true }
-        const inner = bulletMatch[1]
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/`([^`]+)`/g, '<code>$1</code>')
-        output.push(`<li>${inner}</li>`)
-      } else {
-        if (inList) { output.push('</ul>'); inList = false }
-        const formatted = line
-          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-          .replace(/`([^`]+)`/g, '<code>$1</code>')
-        output.push(formatted ? formatted : '<br/>')
-      }
+    const flushList = () => {
+      if (inUl) { output.push('</ul>'); inUl = false }
+      if (inOl) { output.push('</ol>'); inOl = false }
     }
-    if (inList) output.push('</ul>')
+    const flushTable = () => {
+      if (!inTable) return
+      inTable = false
+      let html = '<table>'
+      tableRows.forEach((cells, i) => {
+        const tag = i === 0 ? 'th' : 'td'
+        html += '<tr>' + cells.map(c => `<${tag}>${inlineFormat(c.trim())}</${tag}>`).join('') + '</tr>'
+      })
+      html += '</table>'
+      output.push(html)
+      tableRows = []
+    }
+    const inlineFormat = (s: string) => s
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
 
-    // Join non-list lines with <br>, but don't double-br around ul blocks
+    for (const raw of lines) {
+      const line = raw
+
+      // Code fence open/close
+      if (line.match(/^```/)) {
+        if (!inCode) {
+          flushList(); flushTable()
+          codeLang = line.slice(3).trim()
+          codeLines = []
+          inCode = true
+        } else {
+          const lang = codeLang ? ` class="lang-${codeLang}"` : ''
+          output.push(`<pre><code${lang}>${codeLines.map(l => l.replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('\n')}</code></pre>`)
+          inCode = false; codeLang = ''; codeLines = []
+        }
+        continue
+      }
+      if (inCode) { codeLines.push(line); continue }
+
+      // Tables (pipe syntax)
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        if (line.replace(/[\s|:-]/g, '') === '') continue // separator row
+        flushList()
+        inTable = true
+        tableRows.push(line.trim().slice(1, -1).split('|'))
+        continue
+      } else if (inTable) { flushTable() }
+
+      // Headings
+      const h3 = line.match(/^###\s+(.+)/)
+      const h2 = line.match(/^##\s+(.+)/)
+      const h1 = line.match(/^#\s+(.+)/)
+      if (h1) { flushList(); output.push(`<h1>${inlineFormat(h1[1])}</h1>`); continue }
+      if (h2) { flushList(); output.push(`<h2>${inlineFormat(h2[1])}</h2>`); continue }
+      if (h3) { flushList(); output.push(`<h3>${inlineFormat(h3[1])}</h3>`); continue }
+
+      // Horizontal rule
+      if (line.match(/^---+\s*$/)) { flushList(); output.push('<hr/>'); continue }
+
+      // Blockquote
+      const bq = line.match(/^>\s?(.*)/)
+      if (bq) { flushList(); output.push(`<blockquote>${inlineFormat(bq[1])}</blockquote>`); continue }
+
+      // Ordered list
+      const ol = line.match(/^(\d+)\.\s+(.+)/)
+      if (ol) {
+        if (!inOl) { flushList(); output.push('<ol>'); inOl = true }
+        output.push(`<li>${inlineFormat(ol[2])}</li>`)
+        continue
+      }
+
+      // Unordered list
+      const ul = line.match(/^[-*]\s+(.+)/)
+      if (ul) {
+        if (!inUl) { flushList(); output.push('<ul>'); inUl = true }
+        output.push(`<li>${inlineFormat(ul[1])}</li>`)
+        continue
+      }
+
+      // Normal paragraph line
+      flushList()
+      output.push(line ? inlineFormat(line) : '<br/>')
+    }
+    if (inCode) output.push(`<pre><code>${codeLines.join('\n')}</code></pre>`)
+    flushList(); flushTable()
+
     return output.join('\n')
-      .replace(/\n(<\/?ul>)/g, '$1')
-      .replace(/(<\/?ul>)\n/g, '$1')
+      .replace(/\n(<\/?(?:ul|ol|pre|table|h[123]|hr|blockquote))/g, '$1')
+      .replace(/(<\/(?:ul|ol|pre|table|h[123]|hr|blockquote)>)\n/g, '$1')
       .replace(/\n/g, '<br/>')
   }
 
