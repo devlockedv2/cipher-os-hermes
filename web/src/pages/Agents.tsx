@@ -109,19 +109,19 @@ export default function Agents() {
             })}
           </div>
 
-          {/* ── Agent list with drawers — shown only when a card is active ── */}
-          {expanded && (
-            <div className="agents-list">
-              {agents.map((agent: any) => (
+          {/* ── Single agent config row — only the selected one ── */}
+          {expanded && (() => {
+            const agent = agents.find((a: any) => a.name === expanded)
+            return agent ? (
+              <div className="agents-list">
                 <AgentRow
-                  key={agent.name}
                   agent={agent}
-                  open={expanded === agent.name}
-                  onToggle={() => toggle(agent.name)}
+                  open={true}
+                  onToggle={() => setExpanded(null)}
                 />
-              ))}
-            </div>
-          )}
+              </div>
+            ) : null
+          })()}
         </>
       )}
     </div>
