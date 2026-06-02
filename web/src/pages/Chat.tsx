@@ -342,22 +342,36 @@ function ChatBubble({ msg }: { msg: Message }) {
     )
   }
 
-  // Render markdown-lite: bold, bullet lists, newlines
+  // Render markdown-lite: bold, inline code, bullet lists, newlines
   const renderContent = (text: string) => {
-    const html = text
-      // Bold
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Inline code
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Bullet lines (- item or * item)
-      .replace(/^[\-\*] (.+)/gm, '<li>$1</li>')
-      // Newlines → <br> (after list conversion so <li> lines stay clean)
+    // Split into lines, process each
+    const lines = text.split('\n')
+    const output: string[] = []
+    let inList = false
+
+    for (const line of lines) {
+      const bulletMatch = line.match(/^[-*]\s+(.+)/)
+      if (bulletMatch) {
+        if (!inList) { output.push('<ul>'); inList = true }
+        const inner = bulletMatch[1]
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+        output.push(`<li>${inner}</li>`)
+      } else {
+        if (inList) { output.push('</ul>'); inList = false }
+        const formatted = line
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+        output.push(formatted ? formatted : '<br/>')
+      }
+    }
+    if (inList) output.push('</ul>')
+
+    // Join non-list lines with <br>, but don't double-br around ul blocks
+    return output.join('\n')
+      .replace(/\n(<\/?ul>)/g, '$1')
+      .replace(/(<\/?ul>)\n/g, '$1')
       .replace(/\n/g, '<br/>')
-      // Wrap consecutive <li> in <ul>
-      .replace(/(<li>.*?<\/li>(<br\/>)?)+/g, (match) =>
-        '<ul>' + match.replace(/<br\/>/g, '') + '</ul>'
-      )
-    return html
   }
 
   return (

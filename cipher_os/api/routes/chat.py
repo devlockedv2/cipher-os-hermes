@@ -197,14 +197,12 @@ async def chat_websocket(ws: WebSocket):
                 ):
                     if event["type"] == "token":
                         heartbeat_task.cancel()  # first token arrived — stop heartbeats
-                        # Buffer to detect markers — send cleaned token to UI
-                        cleaned = _strip_markers(event["content"])
-                        if cleaned:
-                            await ws.send_json({"type": "token", "content": cleaned})
-                        full_response_parts.append(event["content"])  # keep raw for parsing
+                        if primary_agent != "cipher":
+                            # Non-cipher agents: stream directly, no marker interception needed
+                            await ws.send_json({"type": "token", "content": event["content"]})
+                        # For cipher: buffer silently — markers can span multiple tokens
+                        full_response_parts.append(event["content"])
                     elif event["type"] == "done":
-                        # Don't send done yet — the [TICKETS:] handler may send more tokens
-                        # We'll send done after all post-processing is complete
                         break
                     elif event["type"] == "error":
                         await ws.send_json(event)
@@ -219,10 +217,11 @@ async def chat_websocket(ws: WebSocket):
 
             # --- Parse Cipher's output for action markers ---
             if primary_agent == "cipher":
-                # Handle [TICKETS:workspace] — Cipher wants to fetch tickets,
-                # inject result back and let Cipher continue with that context
+                # Handle [TICKETS:workspace] — Cipher wants to fetch tickets.
+                # First pass was buffered silently. Now decide what to send.
                 tickets_match = TICKETS_QUERY_RE.search(full_response)
                 if tickets_match:
+                    # Don't replay first-pass output at all — do a follow-up call
                     query_ws = tickets_match.group(1).strip() or workspace
                     result = _format_tickets_result(query_ws)
                     follow_up = f"[System: ticket query result]\n{result}\n\nNow answer the user's question using this data."
@@ -236,9 +235,7 @@ async def chat_websocket(ws: WebSocket):
                         ):
                             if event["type"] == "token":
                                 hb2.cancel()
-                                cleaned = _strip_markers(event["content"])
-                                if cleaned:
-                                    await ws.send_json({"type": "token", "content": cleaned})
+                                await ws.send_json({"type": "token", "content": event["content"]})
                                 follow_parts.append(event["content"])
                             elif event["type"] == "done":
                                 await ws.send_json(event)
@@ -253,6 +250,11 @@ async def chat_websocket(ws: WebSocket):
                         await ws.send_json({"type": "error", "content": str(e)})
                         sent_done = True
                     full_response = "".join(follow_parts)
+                else:
+                    # No markers — replay the buffered cipher response to the client now
+                    clean = _strip_markers(full_response)
+                    if clean:
+                        await ws.send_json({"type": "token", "content": clean})
 
                 # Handle [TICKET:type:title] markers — Cipher decided work needs tracking
                 for match in TICKET_RE.finditer(full_response):
