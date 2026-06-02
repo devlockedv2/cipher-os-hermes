@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -69,6 +69,14 @@ function AgentRow({ agent, open, onToggle }: {
   const qc = useQueryClient()
   const Icon = AGENT_ICONS[agent.name] || CircleDot
   const color = agent.color || '#8B5CF6'
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  // Scroll into view when opened
+  useEffect(() => {
+    if (open && rowRef.current) {
+      setTimeout(() => rowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+    }
+  }, [open])
 
   // Fetch full detail (including personality) only when expanded
   const { data: detail } = useQuery({
@@ -121,7 +129,10 @@ function AgentRow({ agent, open, onToggle }: {
   })
 
   return (
-    <div className={`agent-row glass-card ${open ? 'agent-row--open' : ''}`}>
+    <div
+      ref={rowRef}
+      className={`agent-row glass-card ${open ? 'agent-row--open' : ''}`}
+    >
       {/* ── Summary bar ── */}
       <button className="agent-row-header" onClick={onToggle}>
         <div className="agent-row-left">

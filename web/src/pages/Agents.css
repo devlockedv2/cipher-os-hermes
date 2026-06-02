@@ -15,8 +15,11 @@
 
 /* ── Row card ── */
 .agent-row {
-  overflow: hidden;
+  overflow: visible;
   transition: border-color 0.2s;
+  padding: 0 !important; /* header + drawer manage own padding */
+  display: flex;
+  flex-direction: column;
 }
 
 .agent-row--open {
@@ -202,19 +205,34 @@
 .slider {
   flex: 1;
   -webkit-appearance: none;
-  height: 4px;
-  border-radius: 2px;
+  appearance: none;
+  height: 5px;
+  border-radius: 3px;
   background: var(--glass-border);
   outline: none;
+  accent-color: var(--thumb-color, var(--violet));
+  cursor: pointer;
 }
 
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
+  appearance: none;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: var(--thumb-color, var(--violet));
   cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.15);
+  box-shadow: 0 0 8px var(--thumb-color, var(--violet));
+}
+
+.slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--thumb-color, var(--violet));
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.15);
 }
 
 .slider-value {
@@ -344,11 +362,13 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 260px;
+  max-height: 320px;
+  min-height: 120px;
   overflow-y: auto;
   line-height: 1.6;
   scrollbar-width: thin;
-  scrollbar-color: var(--glass-border) transparent;
+  scrollbar-color: rgba(139,92,246,0.3) transparent;
+  flex: 1;
 }
 
 /* Status pills */
