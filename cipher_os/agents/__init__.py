@@ -216,7 +216,19 @@ async def run_agent_streaming(
                                 return
 
                             elif current_event == "run.completed":
-                                yield {"type": "done", "content": ""}
+                                # Hermes sends usage in run.completed payload
+                                usage = data.get("usage") or {}
+                                in_tok = usage.get("input_tokens", 0)
+                                out_tok = usage.get("output_tokens", 0)
+                                # Estimate cost: Sonnet ~$3/$15 per 1M tokens
+                                est_cost = (in_tok * 3.0 + out_tok * 15.0) / 1_000_000
+                                yield {
+                                    "type": "done",
+                                    "content": "",
+                                    "input_tokens": in_tok,
+                                    "output_tokens": out_tok,
+                                    "cost": est_cost,
+                                }
                                 return
 
                             elif current_event == "error":

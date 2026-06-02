@@ -181,6 +181,9 @@ async def chat_websocket(ws: WebSocket):
             # --- Stream primary agent (Cipher or explicit) ---
             start_time = time.time()
             full_response_parts = []
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_cost = 0.0
 
             # Workspace context is NOT injected upfront — Cipher fetches tickets
             # on demand via [TICKETS:workspace] marker, keeping unrelated prompts lean.
@@ -203,6 +206,9 @@ async def chat_websocket(ws: WebSocket):
                         # For cipher: buffer silently — markers can span multiple tokens
                         full_response_parts.append(event["content"])
                     elif event["type"] == "done":
+                        total_input_tokens += event.get("input_tokens", 0)
+                        total_output_tokens += event.get("output_tokens", 0)
+                        total_cost += event.get("cost", 0.0)
                         break
                     elif event["type"] == "error":
                         await ws.send_json(event)
@@ -238,7 +244,10 @@ async def chat_websocket(ws: WebSocket):
                                 await ws.send_json({"type": "token", "content": event["content"]})
                                 follow_parts.append(event["content"])
                             elif event["type"] == "done":
-                                await ws.send_json(event)
+                                total_input_tokens += event.get("input_tokens", 0)
+                                total_output_tokens += event.get("output_tokens", 0)
+                                total_cost += event.get("cost", 0.0)
+                                await ws.send_json({"type": "done", "content": ""})
                                 sent_done = True
                                 break
                             elif event["type"] == "error":
@@ -330,7 +339,10 @@ async def chat_websocket(ws: WebSocket):
                     agent=primary_agent,
                     model=config.get("hermes", {}).get("model", "unknown"),
                     task=message[:200],
-                    status="completed" if full_response_parts else "failed",
+                    status="completed" if full_response else "failed",
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                    cost=total_cost,
                 )
             except Exception:
                 pass
