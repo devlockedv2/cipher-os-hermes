@@ -357,8 +357,16 @@ function ChatBubble({ msg }: { msg: Message }) {
           )}
         </div>
         <div className={`agent-content ${msg.streaming ? 'streaming' : ''} ${msg.error ? 'error-content' : ''}`}>
-          {msg.content || (msg.streaming ? '' : '—')}
-          {msg.streaming && <span className="cursor" />}
+          {msg.streaming && !msg.content ? (
+            <span className="inline-thinking">
+              <span className="thinking-dot" />
+              <span className="thinking-dot" />
+              <span className="thinking-dot" />
+            </span>
+          ) : (
+            msg.content || (msg.streaming ? '' : '—')
+          )}
+          {msg.streaming && msg.content && <span className="cursor" />}
         </div>
       </div>
     </div>

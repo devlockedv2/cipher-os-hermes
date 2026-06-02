@@ -354,3 +354,11 @@
   0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
   40%           { transform: scale(1.1); opacity: 1; }
 }
+
+/* Inline thinking dots inside agent bubble */
+.inline-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+}
