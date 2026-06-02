@@ -91,7 +91,7 @@ def get_agent_personality(agent: str) -> str:
 
 
 def get_rules() -> str:
-    """Load safety + operations rules."""
+    """Load safety + operations rules (safety first — highest priority)."""
     home = get_cipher_home()
     parts = []
     for name in ("safety.md", "operations.md"):
@@ -101,26 +101,61 @@ def get_rules() -> str:
     return "\n\n---\n\n".join(parts)
 
 
+def get_knowledge() -> str:
+    """Load shared knowledge: team roster + standard workflows."""
+    home = get_cipher_home()
+    parts = []
+    for name in ("team-roster.md", "workflows.md"):
+        p = home / "knowledge" / name
+        if p.exists():
+            parts.append(p.read_text())
+    return "\n\n---\n\n".join(parts)
+
+
 def build_system_prompt(agent: str, workspace: Optional[str] = None) -> str:
-    """Build full system prompt: safety → ops → personality → workspace context."""
+    """Build full system prompt: safety → ops → personality → knowledge → workspace context."""
     parts = []
 
+    # 1. Safety rules (highest priority — cannot be overridden)
     rules = get_rules()
     if rules:
         parts.append(rules)
 
+    # 2. Agent personality
     parts.append(get_agent_personality(agent))
 
+    # 3. Shared knowledge (team roster, workflows)
+    knowledge = get_knowledge()
+    if knowledge:
+        parts.append(knowledge)
+
+    # 4. Workspace-specific context
     if workspace:
         allowed = get_allowed_paths(workspace, agent)
-        parts.append(
+        ws_skills = _get_workspace_skills(workspace)
+        ws_block = (
             f"## Session Context\n\n"
             f"- Workspace: {workspace}\n"
             f"- Agent: {agent}\n"
             f"- Allowed paths: {json.dumps(allowed)}\n"
             f"- Role: {AGENT_ROLES.get(agent, 'Unknown')}\n"
         )
+        if ws_skills:
+            ws_block += f"\n## Workspace Knowledge\n\n{ws_skills}"
+        parts.append(ws_block)
 
+    return "\n\n---\n\n".join(parts)
+
+
+def _get_workspace_skills(workspace: str) -> str:
+    """Load any .md files from the workspace skills/ directory."""
+    home = get_cipher_home()
+    skills_dir = home / "workspaces" / workspace / "skills"
+    if not skills_dir.exists():
+        return ""
+    parts = []
+    for f in sorted(skills_dir.glob("*.md")):
+        parts.append(f.read_text())
     return "\n\n---\n\n".join(parts)
 
 

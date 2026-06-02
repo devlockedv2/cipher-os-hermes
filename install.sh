@@ -258,6 +258,37 @@ for agent in cipher lens atlas forge sentinel; do
 done
 success "Agent personalities installed"
 
+# Copy rules (safety + operations)
+log "Installing rules..."
+mkdir -p "$CIPHER_HOME/rules"
+for rule in safety.md operations.md; do
+  SRC="$INSTALL_DIR/templates/rules/$rule"
+  DEST="$CIPHER_HOME/rules/$rule"
+  if [ -f "$SRC" ]; then
+    # Always update rules — they are system files, not user-editable
+    cp "$SRC" "$DEST"
+    log "  rules/$rule: installed"
+  else
+    warn "  rules/$rule: template not found"
+  fi
+done
+success "Rules installed"
+
+# Copy knowledge (team roster + workflows)
+log "Installing knowledge files..."
+mkdir -p "$CIPHER_HOME/knowledge"
+for kb in team-roster.md workflows.md; do
+  SRC="$INSTALL_DIR/templates/knowledge/$kb"
+  DEST="$CIPHER_HOME/knowledge/$kb"
+  if [ -f "$SRC" ]; then
+    cp "$SRC" "$DEST"
+    log "  knowledge/$kb: installed"
+  else
+    warn "  knowledge/$kb: template not found"
+  fi
+done
+success "Knowledge files installed"
+
 step "[ 6 / 7 ]  Setting up system service"
 
 if [ "$SKIP_SERVICE" = true ]; then
