@@ -97,17 +97,19 @@ export default function Agents() {
             })}
           </div>
 
-          {/* ── Agent list with drawers ── */}
-          <div className="agents-list">
-            {agents.map((agent: any) => (
-              <AgentRow
-                key={agent.name}
-                agent={agent}
-                open={expanded === agent.name}
-                onToggle={() => toggle(agent.name)}
-              />
-            ))}
-          </div>
+          {/* ── Agent list with drawers — shown only when a card is active ── */}
+          {expanded && (
+            <div className="agents-list">
+              {agents.map((agent: any) => (
+                <AgentRow
+                  key={agent.name}
+                  agent={agent}
+                  open={expanded === agent.name}
+                  onToggle={() => toggle(agent.name)}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
