@@ -288,18 +288,24 @@ def run_agent_sync(
 
 
 def get_agent_status() -> list[dict]:
-    """Return status info for all agents."""
+    """Return status info for all agents, enriched from activity log."""
+    from ..activity.log import stats as activity_stats
     config = load_config()
     agents = []
     for name in AGENT_NAMES:
         agent_config = config.get("agents", {}).get(name, {})
+        s = activity_stats(agent=name)
         agents.append({
             "name": name,
             "role": AGENT_ROLES[name],
             "color": AGENT_COLORS[name],
             "model": agent_config.get("model") or config.get("hermes", {}).get("model", "default"),
             "status": "nominal",
-            "tasks_today": 0,
-            "cost_today": 0.0,
+            "tasks_completed": s.get("completed") or 0,
+            "tasks_failed":    s.get("failed") or 0,
+            "tasks_total":     s.get("total_tasks") or 0,
+            "total_cost":      round(s.get("total_cost") or 0.0, 4),
+            "input_tokens":    s.get("total_input_tokens") or 0,
+            "output_tokens":   s.get("total_output_tokens") or 0,
         })
     return agents

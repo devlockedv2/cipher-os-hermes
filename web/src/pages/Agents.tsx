@@ -8,6 +8,11 @@ import {
 } from 'lucide-react'
 import './Agents.css'
 
+const fmtTokens = (n: number | undefined | null) => {
+  if (n == null || isNaN(n)) return '0'
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
+}
+
 const AGENT_ICONS: Record<string, React.ElementType> = {
   cipher:   CircleDot,
   lens:     Search,
@@ -44,16 +49,66 @@ export default function Agents() {
       {isLoading ? (
         <div className="loading-row">Loading agents…</div>
       ) : (
-        <div className="agents-list">
-          {agents.map((agent: any) => (
-            <AgentRow
-              key={agent.name}
-              agent={agent}
-              open={expanded === agent.name}
-              onToggle={() => toggle(agent.name)}
-            />
-          ))}
-        </div>
+        <>
+          {/* ── Quick-glance cards ── */}
+          <div className="agent-glance-strip">
+            {agents.map((agent: any) => {
+              const Icon = AGENT_ICONS[agent.name] || CircleDot
+              const color = agent.color || '#8B5CF6'
+              const isOpen = expanded === agent.name
+              return (
+                <button
+                  key={agent.name}
+                  className={`agqs-card glass-card ${isOpen ? 'agqs-card--active' : ''}`}
+                  style={{ '--agent-color': color } as any}
+                  onClick={() => toggle(agent.name)}
+                >
+                  <div className="agqs-top">
+                    <div className="agqs-icon" style={{ color, background: `${color}18`, borderColor: `${color}44` }}>
+                      <Icon size={15} />
+                    </div>
+                    <span className={`agqs-status agqs-status--${agent.enabled === false ? 'disabled' : agent.status}`}>
+                      <span className="agqs-dot" />
+                      {agent.enabled === false ? 'off' : (agent.status || 'idle')}
+                    </span>
+                  </div>
+                  <div className="agqs-name">{agent.name}</div>
+                  <div className="agqs-stats">
+                    <div className="agqs-stat">
+                      <span className="agqs-stat-val">{agent.tasks_completed ?? 0}</span>
+                      <span className="agqs-stat-lbl mono">done</span>
+                    </div>
+                    <div className="agqs-stat">
+                      <span className="agqs-stat-val" style={{ color: agent.tasks_failed > 0 ? 'var(--red)' : undefined }}>
+                        {agent.tasks_failed ?? 0}
+                      </span>
+                      <span className="agqs-stat-lbl mono">failed</span>
+                    </div>
+                    <div className="agqs-stat">
+                      <span className="agqs-stat-val">${(agent.total_cost ?? 0).toFixed(3)}</span>
+                      <span className="agqs-stat-lbl mono">cost</span>
+                    </div>
+                  </div>
+                  <div className="agqs-tokens mono">
+                    ↑{fmtTokens(agent.input_tokens)} ↓{fmtTokens(agent.output_tokens)}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* ── Agent list with drawers ── */}
+          <div className="agents-list">
+            {agents.map((agent: any) => (
+              <AgentRow
+                key={agent.name}
+                agent={agent}
+                open={expanded === agent.name}
+                onToggle={() => toggle(agent.name)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
