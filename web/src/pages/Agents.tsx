@@ -59,38 +59,50 @@ export default function Agents() {
               return (
                 <button
                   key={agent.name}
-                  className={`agqs-card glass-card ${isOpen ? 'agqs-card--active' : ''}`}
+                  className={`agqs-card ${isOpen ? 'agqs-card--active' : ''}`}
                   style={{ '--agent-color': color } as any}
                   onClick={() => toggle(agent.name)}
                 >
-                  <div className="agqs-top">
-                    <div className="agqs-icon" style={{ color, background: `${color}18`, borderColor: `${color}44` }}>
-                      <Icon size={15} />
-                    </div>
-                    <span className={`agqs-status agqs-status--${agent.enabled === false ? 'disabled' : agent.status}`}>
-                      <span className="agqs-dot" />
-                      {agent.enabled === false ? 'off' : (agent.status || 'idle')}
-                    </span>
-                  </div>
-                  <div className="agqs-name">{agent.name}</div>
-                  <div className="agqs-stats">
-                    <div className="agqs-stat">
-                      <span className="agqs-stat-val">{agent.tasks_completed ?? 0}</span>
-                      <span className="agqs-stat-lbl mono">done</span>
-                    </div>
-                    <div className="agqs-stat">
-                      <span className="agqs-stat-val" style={{ color: agent.tasks_failed > 0 ? 'var(--red)' : undefined }}>
-                        {agent.tasks_failed ?? 0}
+                  <div className="agqs-body">
+                    <div className="agqs-top">
+                      <div className="agqs-icon" style={{ color, background: `${color}18`, borderColor: `${color}40` }}>
+                        <Icon size={17} />
+                      </div>
+                      <span className={`agqs-status agqs-status--${agent.enabled === false ? 'disabled' : agent.status}`}>
+                        <span className="agqs-dot" />
+                        {agent.enabled === false ? 'off' : (agent.status || 'idle')}
                       </span>
-                      <span className="agqs-stat-lbl mono">failed</span>
                     </div>
-                    <div className="agqs-stat">
-                      <span className="agqs-stat-val">${(agent.total_cost ?? 0).toFixed(3)}</span>
-                      <span className="agqs-stat-lbl mono">cost</span>
+
+                    <div>
+                      <div className="agqs-name">{agent.name}</div>
+                      <div className="agqs-role">{agent.role?.split('—')[0]?.trim()}</div>
+                    </div>
+
+                    <div className="agqs-stats">
+                      <div className="agqs-stat">
+                        <span className="agqs-stat-val">{agent.tasks_completed ?? 0}</span>
+                        <span className="agqs-stat-lbl">done</span>
+                      </div>
+                      <div className="agqs-stat">
+                        <span className="agqs-stat-val" style={{ color: (agent.tasks_failed ?? 0) > 0 ? 'var(--red)' : undefined }}>
+                          {agent.tasks_failed ?? 0}
+                        </span>
+                        <span className="agqs-stat-lbl">failed</span>
+                      </div>
+                      <div className="agqs-stat">
+                        <span className="agqs-stat-val agqs-stat-val--cost">${(agent.total_cost ?? 0).toFixed(3)}</span>
+                        <span className="agqs-stat-lbl">cost</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="agqs-tokens mono">
-                    ↑{fmtTokens(agent.input_tokens)} ↓{fmtTokens(agent.output_tokens)}
+
+                  <div className="agqs-footer">
+                    <div className="agqs-tokens">
+                      <span>↑{fmtTokens(agent.input_tokens)}</span>
+                      <span>↓{fmtTokens(agent.output_tokens)}</span>
+                    </div>
+                    <ChevronDown size={13} className="agqs-chevron" />
                   </div>
                 </button>
               )
