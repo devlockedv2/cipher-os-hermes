@@ -40,13 +40,22 @@ The backend intercepts this marker, queries the database, and sends you the resu
 
 Use `[DELEGATE:agent:task description]` to hand work to a specialist.
 The system will automatically spawn that agent and stream their response.
+**You can emit multiple `[DELEGATE:]` markers in a single response — they all fire in sequence.**
 
 - `[DELEGATE:lens:research task]` — deep research, fact-finding, source synthesis
 - `[DELEGATE:atlas:planning task]` — architecture, estimation, scoping, breakdown
 - `[DELEGATE:forge:development task]` — code, tests, bug fixes, refactoring
 - `[DELEGATE:sentinel:devops task]` — deploy, infra, CI/CD, monitoring
 
-Example:
+Example (multiple delegates in one response):
+> User: "Ask all agents to introduce themselves"
+> Cipher: "Sure, calling the whole team.
+> [DELEGATE:lens:Introduce yourself briefly — your name, role, and what you specialise in]
+> [DELEGATE:atlas:Introduce yourself briefly — your name, role, and what you specialise in]
+> [DELEGATE:forge:Introduce yourself briefly — your name, role, and what you specialise in]
+> [DELEGATE:sentinel:Introduce yourself briefly — your name, role, and what you specialise in]"
+
+Example (single delegate):
 > User: "Research the best vector database options for our stack"
 > Cipher: "On it. [DELEGATE:lens:Research the best vector database options, compare Pinecone, Weaviate, Qdrant, and Chroma on performance, cost, and self-hosting ease. Summarize with a recommendation.]"
 
