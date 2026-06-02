@@ -1,15 +1,61 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:9800/api/v1'
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+
+// Token management
+function getToken(): string | null {
+  return localStorage.getItem('cipher_token')
+}
+
+function setToken(token: string) {
+  localStorage.setItem('cipher_token', token)
+}
+
+function clearToken() {
+  localStorage.removeItem('cipher_token')
+}
+
+function isAuthenticated(): boolean {
+  return !!getToken()
+}
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
   const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   })
+
+  if (res.status === 401) {
+    clearToken()
+    window.location.href = '/login'
+    throw new Error('Session expired')
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(error.detail || 'API Error')
   }
   return res.json()
+}
+
+export const auth = {
+  getToken,
+  setToken,
+  clearToken,
+  isAuthenticated,
+  status: () => fetchAPI<{ setup_complete: boolean }>('/auth/status'),
+  login: (username: string, password: string) =>
+    fetchAPI<{ success: boolean; token: string; username: string }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+  setup: (username: string, password: string) =>
+    fetchAPI<{ success: boolean; token: string }>('/auth/setup', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
 }
 
 export const api = {
