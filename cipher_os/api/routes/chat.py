@@ -12,7 +12,7 @@ from ...agents import run_agent_streaming, get_agent_status
 from ...agents.orchestrator import route_task, approve_plan, decompose_task
 from ...core.config import load_config
 from ...activity.log import log as activity_log
-from ...tickets import create_ticket, update_ticket
+from ...tickets import update_ticket
 
 router = APIRouter()
 
@@ -114,21 +114,7 @@ async def chat_websocket(ws: WebSocket):
                 })
                 continue
 
-            # Create a ticket to track this task
-            try:
-                ticket = create_ticket(
-                    workspace=workspace,
-                    title=message[:120],
-                    type=routing.task_type,
-                    created_by="user",
-                    assigned_to=routing.agent,
-                    description=message,
-                    estimate="sm",
-                )
-                ticket_id = ticket["id"]
-                await ws.send_json({"type": "ticket", "ticket_id": ticket_id})
-            except Exception:
-                ticket_id = None
+            ticket_id = None  # Tickets are created explicitly by the user, not auto-generated on chat
 
             # Stream the agent response
             start_time = time.time()
