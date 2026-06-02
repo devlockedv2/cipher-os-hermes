@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { getToken } from '../lib/api'
-import { Send, CircleDot, Search, Compass, Hammer, Shield, Bot, AlertTriangle, Ticket } from 'lucide-react'
+import { Send, CircleDot, Search, Compass, Hammer, Shield, Bot, AlertTriangle, Ticket, ArrowRight } from 'lucide-react'
 import './Chat.css'
 
 interface Message {
-  role: 'user' | 'assistant' | 'agent' | 'system' | 'thinking'
+  role: 'user' | 'assistant' | 'agent' | 'system' | 'thinking' | 'handoff'
   content: string
   agent?: string
+  from_agent?: string   // for handoff cards: who delegated
+  to_agent?: string     // for handoff cards: who received
+  task?: string         // for handoff cards: the task text
   ticket_id?: string
   streaming?: boolean
   error?: boolean
@@ -56,6 +59,7 @@ export default function Chat() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const lastAgentRef = useRef<string>('cipher')  // tracks who last spoke (for handoff cards)
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -121,6 +125,7 @@ export default function Chat() {
       case 'routing': {
         routedRef.current = true
         const agent = event.agent as string
+        lastAgentRef.current = agent
         setMessages(prev => {
           const filtered = prev.filter(m => m.role !== 'thinking')
           return [...filtered, {
@@ -139,13 +144,45 @@ export default function Chat() {
         break
       }
 
+      case 'delegating': {
+        const toAgent = event.agent as string
+        const task = event.task as string
+        const fromAgent = lastAgentRef.current
+        lastAgentRef.current = toAgent
+        setMessages(prev => {
+          const updated = [...prev]
+          // Close any open streaming bubble
+          const last = updated[updated.length - 1]
+          if (last?.streaming) {
+            updated[updated.length - 1] = { ...last, streaming: false }
+          }
+          // Handoff card
+          updated.push({
+            role: 'handoff',
+            content: '',
+            from_agent: fromAgent,
+            to_agent: toAgent,
+            task,
+          })
+          // Open new streaming bubble for the delegate agent
+          updated.push({
+            role: 'agent',
+            content: '',
+            agent: toAgent,
+            streaming: true,
+          })
+          return updated
+        })
+        break
+      }
+
       case 'token': {
         const content = event.content as string
         const tokenAgent = (event.agent as string) || undefined
         setMessages(prev => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
-          // If agent changed mid-conversation, close current bubble and start new one
+          // If agent changed mid-conversation without a delegating event, close + open new bubble
           if (last?.streaming && tokenAgent && last.agent !== tokenAgent) {
             updated[updated.length - 1] = { ...last, streaming: false }
             updated.push({ role: 'agent', content, agent: tokenAgent, streaming: true })
@@ -326,6 +363,27 @@ function ChatBubble({ msg }: { msg: Message }) {
         <div className="thinking-dot" />
         <div className="thinking-dot" />
         <div className="thinking-dot" />
+      </div>
+    )
+  }
+
+  if (msg.role === 'handoff') {
+    const fromColor = AGENT_COLORS[msg.from_agent || ''] || '#8B5CF6'
+    const toColor   = AGENT_COLORS[msg.to_agent   || ''] || '#8B5CF6'
+    const FromIcon  = msg.from_agent ? (AGENT_ICONS[msg.from_agent] as React.ReactElement) : <Bot size={12} />
+    const ToIcon    = msg.to_agent   ? (AGENT_ICONS[msg.to_agent]   as React.ReactElement) : <Bot size={12} />
+    return (
+      <div className="handoff-card">
+        <div className="handoff-agents">
+          <span className="handoff-agent-chip" style={{ color: fromColor, borderColor: `${fromColor}44`, background: `${fromColor}11` }}>
+            {FromIcon}&nbsp;{msg.from_agent}
+          </span>
+          <ArrowRight size={12} className="handoff-arrow" />
+          <span className="handoff-agent-chip" style={{ color: toColor, borderColor: `${toColor}44`, background: `${toColor}11` }}>
+            {ToIcon}&nbsp;{msg.to_agent}
+          </span>
+        </div>
+        {msg.task && <div className="handoff-task">"{msg.task}"</div>}
       </div>
     )
   }
