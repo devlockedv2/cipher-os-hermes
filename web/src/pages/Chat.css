@@ -60,6 +60,22 @@
 .ws-status.connected { color: var(--mint); }
 .ws-status.disconnected { color: var(--muted); }
 
+.chat-ws-select {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  outline: none;
+  font-family: var(--font-mono);
+  transition: border-color 0.15s;
+}
+.chat-ws-select:hover { border-color: rgba(139,92,246,0.4); }
+.chat-ws-select:focus { border-color: rgba(139,92,246,0.6); }
+.chat-ws-select option { background: #1a1a2e; }
+
 .ws-dot {
   width: 6px;
   height: 6px;

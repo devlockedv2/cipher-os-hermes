@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import 'highlight.js/styles/github-dark.css'
-import { getToken } from '../lib/api'
+import { getToken, api } from '../lib/api'
 import { Send, CircleDot, Search, Compass, Hammer, Shield, Bot, AlertTriangle, ArrowRight, Copy, Check } from 'lucide-react'
 import './Chat.css'
 
@@ -55,9 +56,11 @@ export default function Chat() {
     content: 'Connected to CIPHER-OS. Send a task to get started.',
   }])
   const [input, setInput] = useState('')
-  const [workspace] = useState('default')
+  const [workspace, setWorkspace] = useState('default')
   const [connected, setConnected] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const { data: wsData } = useQuery({ queryKey: ['workspaces'], queryFn: api.getWorkspaces })
 
   const wsRef = useRef<WebSocket | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -310,6 +313,17 @@ export default function Chat() {
           <span className="ws-dot" />
           {connected ? 'Live' : 'Reconnecting...'}
         </div>
+        <select
+          className="chat-ws-select"
+          value={workspace}
+          onChange={e => setWorkspace(e.target.value)}
+          disabled={busy}
+        >
+          <option value="default">default</option>
+          {(wsData || []).filter((w: any) => w.name !== 'default').map((w: any) => (
+            <option key={w.name} value={w.name}>{w.name}</option>
+          ))}
+        </select>
       </div>
 
       <div className="chat-messages">

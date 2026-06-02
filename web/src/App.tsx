@@ -12,6 +12,7 @@ import Workspaces from './pages/Workspaces'
 import Activity from './pages/Activity'
 import Settings from './pages/Settings'
 import Chat from './pages/Chat'
+import Plan from './pages/Plan'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 5000 } },
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="activity" element={<Activity />} />
             <Route path="settings" element={<Settings />} />
             <Route path="chat" element={<Chat />} />
+            <Route path="plan" element={<Plan />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -61,6 +61,7 @@ export const auth = {
 // API methods
 export const api = {
   getDashboard: () => fetchAPI<any>('/dashboard'),
+  getPlan: (workspace?: string) => fetchAPI<any>(`/plan${workspace ? `?workspace=${workspace}` : ''}`),
   getAgents: () => fetchAPI<any[]>('/agents'),
   getAgent: (name: string) => fetchAPI<any>(`/agents/${name}`),
   getAgentActivity: (name: string) => fetchAPI<any>(`/agents/${name}/activity`),

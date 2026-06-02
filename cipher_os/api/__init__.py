@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .middleware import AuthMiddleware as JWTAuthMiddleware
-from .routes import dashboard, agents, tickets, workspaces, activity, settings, chat
+from .routes import dashboard, agents, tickets, workspaces, activity, settings, chat, plan
 from .routes import auth as auth_routes
 from .websocket import ConnectionManager
 
@@ -39,6 +39,7 @@ app.include_router(tickets.router, prefix="/api/v1/tickets", tags=["tickets"])
 app.include_router(workspaces.router, prefix="/api/v1/workspaces", tags=["workspaces"])
 app.include_router(activity.router, prefix="/api/v1/activity", tags=["activity"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
+app.include_router(plan.router, prefix="/api/v1", tags=["plan"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
 
 # WebSocket manager

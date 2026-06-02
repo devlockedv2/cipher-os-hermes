@@ -1,0 +1,238 @@
+.plan-page {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.plan-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.plan-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+
+.plan-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.plan-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ws-select {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 12px;
+  cursor: pointer;
+  outline: none;
+  font-family: var(--font-mono);
+}
+
+.ws-select:focus {
+  border-color: rgba(139,92,246,0.5);
+}
+
+.ws-select option {
+  background: #1a1a2e;
+}
+
+.plan-total {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+}
+
+.plan-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+/* ── Board ─────────────────────────────────────── */
+.plan-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Column ───────────────────────────────────── */
+.plan-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+
+.col-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.col-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.col-count {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 2px 8px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.col-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+}
+
+.col-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  border: 1px dashed rgba(255,255,255,0.07);
+  border-radius: 8px;
+}
+
+/* ── Task Card ─────────────────────────────────── */
+.task-card {
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.task-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.task-accent {
+  width: 3px;
+  flex-shrink: 0;
+  border-radius: 2px 0 0 2px;
+}
+
+.task-body {
+  flex: 1;
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.task-text {
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(255,255,255,0.88);
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.task-agent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.task-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.task-workspace {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  background: rgba(255,255,255,0.05);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.task-cost {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: #F59E0B;
+}
+
+.task-time {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+}
+
+/* Spinning loader icon */
+.spin {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 1100px) {
+  .plan-board { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .plan-board { grid-template-columns: 1fr; }
+}

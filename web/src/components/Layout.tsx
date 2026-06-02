@@ -2,13 +2,14 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutGrid, Bot, ClipboardList, FolderOpen,
-  Activity, Settings, MessageSquare, LogOut, Menu, X
+  Activity, Settings, MessageSquare, LogOut, Menu, X, Kanban
 } from 'lucide-react'
 import './Layout.css'
 
 const NAV_ITEMS = [
   { to: '/', icon: LayoutGrid, label: 'Dashboard' },
   { to: '/agents', icon: Bot, label: 'Agents' },
+  { to: '/plan', icon: Kanban, label: 'Plan' },
   { to: '/tickets', icon: ClipboardList, label: 'Tickets' },
   { to: '/workspaces', icon: FolderOpen, label: 'Workspaces' },
   { to: '/activity', icon: Activity, label: 'Activity' },
@@ -34,6 +35,7 @@ export default function Layout({ onLogout }: { onLogout?: () => void }) {
             <NavLink
               key={to}
               to={to}
+              end={to === '/'}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
               onClick={() => setMobileMenuOpen(false)}
             >
