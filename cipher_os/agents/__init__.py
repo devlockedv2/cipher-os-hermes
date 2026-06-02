@@ -172,7 +172,7 @@ def build_hermes_cmd(
     # Model: explicit arg → per-agent config override → let Hermes use its own default
     agent_model = config.get("agents", {}).get(agent, {}).get("model") or model
 
-    cmd = [hermes, "chat", "-q", task, "-Q"]  # -Q = quiet/programmatic
+    cmd = [hermes, "chat", "-q", task, "-Q", "--source", "tool", "--ignore-rules"]  # -Q = quiet, --source tool = don't pollute user session list, --ignore-rules = don't load Hermes own SOUL/memory
 
     if agent_model:
         cmd += ["-m", agent_model]
@@ -187,9 +187,9 @@ def build_hermes_env(agent: str, workspace: Optional[str] = None) -> dict:
     home = get_cipher_home()
     config = load_config(workspace=workspace)
 
-    # Inject system prompt as HERMES_SYSTEM_PROMPT env var
+    # Inject system prompt — HERMES_EPHEMERAL_SYSTEM_PROMPT is the correct env var
     system_prompt = build_system_prompt(agent, workspace)
-    env["HERMES_SYSTEM_PROMPT"] = system_prompt
+    env["HERMES_EPHEMERAL_SYSTEM_PROMPT"] = system_prompt
 
     # Hermes home — use configured value if set, else let Hermes find its own
     hermes_home = config.get("hermes", {}).get("home", "")

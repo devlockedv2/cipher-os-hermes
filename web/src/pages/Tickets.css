@@ -113,7 +113,7 @@
   font-size: 10px;
 }
 
-/* Mobile: stack columns vertically */
+/* Mobile: stack columns */
 @media (max-width: 768px) {
   .kanban-board {
     flex-direction: column;
@@ -129,3 +129,113 @@
     overflow-y: auto;
   }
 }
+
+/* Workspace selector tabs */
+.workspace-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ws-tab {
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ws-tab:hover { color: var(--text); border-color: rgba(255,255,255,0.15); }
+.ws-tab--active {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.4);
+  color: var(--violet);
+}
+
+/* New kanban class names used in updated Tickets.tsx */
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-sm);
+}
+.kanban-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.kanban-col-title {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  letter-spacing: 0.03em;
+}
+.kanban-col-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.kanban-cards {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.kanban-card {
+  background: rgba(22, 22, 36, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: var(--space-md);
+  transition: border-color 0.2s, transform 0.15s;
+  cursor: pointer;
+}
+.kanban-card:hover {
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+.kanban-card-id {
+  font-size: 10px;
+  color: var(--violet);
+  margin-bottom: 5px;
+}
+.kanban-card-title {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.kanban-card-agent {
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+.kanban-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.priority-badge {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+}
+.ticket-type {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 4px;
+}
+.kanban-card-estimate {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
