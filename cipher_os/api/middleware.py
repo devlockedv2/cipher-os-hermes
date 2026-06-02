@@ -27,11 +27,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
-        # Require JWT for all other /api/ routes
+        # Extract token — Bearer header OR ?token= query param (WebSocket)
         token = None
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
+
+        # WebSocket connections pass token as query param
+        if not token:
+            token = request.query_params.get("token")
 
         if not token:
             return JSONResponse(

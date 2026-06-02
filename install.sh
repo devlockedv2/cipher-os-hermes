@@ -196,6 +196,47 @@ CIPHER_HOME="$CIPHER_HOME" \
 
 success "CIPHER-OS initialised at $CIPHER_HOME"
 
+# Store Hermes binary path in config
+log "Configuring Hermes integration..."
+HERMES_ABS=$(command -v "$HERMES_BIN" 2>/dev/null || echo "$HERMES_BIN")
+HERMES_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/hermes"
+HERMES_HOME_DIR="$HOME/.hermes"
+
+# Detect model from Hermes config
+HERMES_MODEL=""
+for cfg in "$HERMES_HOME_DIR/config.yaml" "$HERMES_CONFIG_DIR/config.yaml"; do
+  if [ -f "$cfg" ]; then
+    HERMES_MODEL=$(grep -E "^\s*default:" "$cfg" 2>/dev/null | head -1 | sed 's/.*default:\s*//' | tr -d '"' | tr -d "'")
+    [ -n "$HERMES_MODEL" ] && break
+  fi
+done
+[ -z "$HERMES_MODEL" ] && HERMES_MODEL="unknown"
+
+# Write hermes section into cipher-os config
+$PYTHON - <<PYEOF
+import yaml, pathlib, os
+
+home = pathlib.Path("$CIPHER_HOME")
+config_path = home / "config.yaml"
+
+with open(config_path) as f:
+    config = yaml.safe_load(f) or {}
+
+config["hermes"] = {
+    "binary": "$HERMES_ABS",
+    "model": "$HERMES_MODEL",
+    "home": "$HERMES_HOME_DIR",
+}
+
+with open(config_path, "w") as f:
+    yaml.dump(config, f, default_flow_style=False)
+
+print("  hermes.binary =", "$HERMES_ABS")
+print("  hermes.model  =", "$HERMES_MODEL")
+PYEOF
+
+success "Hermes integration configured"
+
 step "[ 6 / 7 ]  Setting up system service"
 
 if [ "$SKIP_SERVICE" = true ]; then

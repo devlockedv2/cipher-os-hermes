@@ -250,15 +250,15 @@ def approve_plan(
         }
 
     # Supervised mode — Cipher approves routine, escalates complex
-    if routing.confidence >= 0.7 and not routing.needs_decomposition:
+    if routing.confidence >= 0.3 and not routing.needs_decomposition:
         return {
             "approved": True,
             "reason": f"Routine task, high confidence routing to {routing.agent}",
             "escalate_to": None,
         }
 
-    # Low confidence or needs decomposition in supervised mode
-    if routing.confidence < 0.5:
+    # Low confidence — escalate to user
+    if routing.confidence < 0.2:
         return {
             "approved": False,
             "reason": f"Low confidence ({routing.confidence:.1f}) — needs clarification",
