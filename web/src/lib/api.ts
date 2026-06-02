@@ -92,6 +92,13 @@ export const api = {
   getWorkspaces: () => fetchAPI<any[]>('/workspaces'),
   createWorkspace: (name: string) =>
     fetchAPI<any>('/workspaces', { method: 'POST', body: JSON.stringify({ name }) }),
+  setLinearKey: (workspace: string, api_key: string) =>
+    fetchAPI<any>(`/workspaces/${workspace}/integrations/linear`, {
+      method: 'PUT',
+      body: JSON.stringify({ api_key }),
+    }),
+  removeLinearKey: (workspace: string) =>
+    fetchAPI<any>(`/workspaces/${workspace}/integrations/linear`, { method: 'DELETE' }),
 
   getActivity: (params?: { workspace?: string; agent?: string; limit?: number }) => {
     const q = new URLSearchParams()

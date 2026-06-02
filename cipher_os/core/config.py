@@ -122,3 +122,21 @@ def save_config(config: dict, workspace: Optional[str] = None) -> None:
     with open(path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
+
+def get_linear_api_key(workspace: str) -> Optional[str]:
+    """Return the Linear API key for a workspace, or None if not configured."""
+    home = get_cipher_home()
+    ws_config = load_yaml(home / "workspaces" / workspace / "config.yaml")
+    return ws_config.get("integrations", {}).get("linear", {}).get("api_key") or None
+
+
+def set_linear_api_key(workspace: str, api_key: str) -> None:
+    """Store the Linear API key for a workspace."""
+    home = get_cipher_home()
+    path = home / "workspaces" / workspace / "config.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cfg = load_yaml(path)
+    cfg.setdefault("integrations", {}).setdefault("linear", {})["api_key"] = api_key
+    with open(path, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
+

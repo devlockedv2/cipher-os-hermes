@@ -10,9 +10,14 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from ...agents import run_agent_streaming, AGENT_NAMES
-from ...core.config import load_config, get_cipher_home
+from ...core.config import load_config, get_cipher_home, get_linear_api_key
 from ...activity.log import log as activity_log
-from ...tickets import create_ticket, query_tickets
+from ...integrations.linear import (
+    get_open_issues,
+    create_issue as linear_create_issue,
+    get_teams,
+    format_issues_for_context,
+)
 
 router = APIRouter()
 
@@ -97,26 +102,18 @@ def _strip_markers(text: str) -> str:
 
 
 def _format_tickets_result(workspace: str) -> str:
-    """Fetch tickets and return a compact result block Cipher can read."""
-    try:
-        all_tickets = query_tickets(workspace=workspace)
-        open_tickets = [t for t in all_tickets if t.get("status") not in ("done", "cancelled")]
-    except Exception as e:
-        return f"[TICKETS_RESULT: error fetching tickets — {e}]"
-
-    if not open_tickets:
-        return f"[TICKETS_RESULT: no open tickets in workspace `{workspace}`]"
-
-    priority_map = {1: "critical", 2: "high", 3: "medium", 4: "low", 5: "minor"}
-    lines = [f"[TICKETS_RESULT: {len(open_tickets)} open ticket(s) in `{workspace}`]"]
-    for t in open_tickets[:30]:
-        pri = priority_map.get(t.get("priority", 3), "medium")
-        assigned = t.get("assigned_to") or "unassigned"
-        lines.append(
-            f"- **{t['id']}** [{t['status']}] [{pri}] {t['title']} "
-            f"(type: {t['type']}, assigned: {assigned})"
+    """Fetch Linear issues for workspace and return a compact context block."""
+    api_key = get_linear_api_key(workspace)
+    if not api_key:
+        return (
+            f"[TICKETS_RESULT: Linear not configured for workspace `{workspace}`. "
+            "The user needs to add a Linear API key in workspace settings.]"
         )
-    return "\n".join(lines)
+    try:
+        issues = get_open_issues(api_key, limit=30)
+        return format_issues_for_context(issues, workspace)
+    except Exception as e:
+        return f"[TICKETS_RESULT: error fetching Linear issues — {e}]"
 
 
 class ChatMessage(BaseModel):
@@ -260,21 +257,27 @@ async def chat_websocket(ws: WebSocket):
                 # Handle [TICKET:type:title] markers — Cipher decided work needs tracking
                 for match in TICKET_RE.finditer(full_response):
                     ticket_type, ticket_title = match.group(1).lower(), match.group(2).strip()
-                    valid_types = {"research", "planning", "development", "devops", "bug", "question"}
-                    if ticket_type not in valid_types:
-                        ticket_type = "development"
+                    api_key = get_linear_api_key(workspace)
+                    if not api_key:
+                        continue  # Linear not configured, skip silently
                     try:
-                        ticket = create_ticket(
-                            workspace=workspace,
+                        # Get first available team for this workspace
+                        teams = get_teams(api_key)
+                        if not teams:
+                            continue
+                        team_id = teams[0]["id"]
+                        issue = linear_create_issue(
+                            api_key=api_key,
+                            team_id=team_id,
                             title=ticket_title[:120],
-                            type=ticket_type,
-                            created_by="cipher",
-                            description=f"Created by Cipher from: {message[:200]}",
+                            description=f"*Created by Cipher*\n\nContext: {message[:300]}",
+                            priority=3,  # medium
                         )
                         await ws.send_json({
                             "type": "ticket_created",
-                            "ticket_id": ticket["id"],
+                            "ticket_id": issue.get("identifier", ""),
                             "title": ticket_title,
+                            "url": issue.get("url", ""),
                         })
                     except Exception:
                         pass

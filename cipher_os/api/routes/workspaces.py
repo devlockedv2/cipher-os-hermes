@@ -8,6 +8,7 @@ from ...core.workspace import (
     list_workspaces, create_workspace, delete_workspace,
     get_workspace_path, create_project,
 )
+from ...core.config import get_linear_api_key, set_linear_api_key
 from ...activity.log import stats as activity_stats
 
 router = APIRouter()
@@ -22,6 +23,10 @@ class ProjectCreate(BaseModel):
     name: str
 
 
+class LinearSettings(BaseModel):
+    api_key: str
+
+
 @router.get("")
 async def list_all_workspaces():
     """List all workspaces."""
@@ -29,10 +34,12 @@ async def list_all_workspaces():
     result = []
     for ws in workspaces:
         stats = activity_stats(workspace=ws["name"])
+        linear_configured = bool(get_linear_api_key(ws["name"]))
         result.append({
             **ws,
             "cost_total": stats.get("total_cost") or 0,
             "tokens_total": (stats.get("total_input_tokens") or 0) + (stats.get("total_output_tokens") or 0),
+            "linear_configured": linear_configured,
         })
     return result
 
@@ -46,8 +53,8 @@ async def get_workspace(name: str):
         raise HTTPException(status_code=404, detail=f"Workspace '{name}' not found")
 
     stats = activity_stats(workspace=name)
+    linear_configured = bool(get_linear_api_key(name))
 
-    # List skills
     skills_dir = path / "skills"
     skills = []
     if skills_dir.exists():
@@ -60,7 +67,26 @@ async def get_workspace(name: str):
         "path": str(path),
         "skills": skills,
         "stats": stats,
+        "linear_configured": linear_configured,
     }
+
+
+@router.put("/{name}/integrations/linear")
+async def set_linear_key(name: str, body: LinearSettings):
+    """Store a Linear API key for this workspace."""
+    try:
+        get_workspace_path(name)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Workspace '{name}' not found")
+    set_linear_api_key(name, body.api_key.strip())
+    return {"success": True, "workspace": name, "linear_configured": True}
+
+
+@router.delete("/{name}/integrations/linear")
+async def remove_linear_key(name: str):
+    """Remove the Linear API key for this workspace."""
+    set_linear_api_key(name, "")
+    return {"success": True, "workspace": name, "linear_configured": False}
 
 
 @router.post("")
