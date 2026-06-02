@@ -10,11 +10,61 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from ...agents import run_agent_streaming, AGENT_NAMES
-from ...core.config import load_config
+from ...core.config import load_config, get_cipher_home
 from ...activity.log import log as activity_log
-from ...tickets import create_ticket
+from ...tickets import create_ticket, query_tickets
 
 router = APIRouter()
+
+
+def _build_workspace_context(workspace: str) -> str:
+    """
+    Build an ephemeral context block injected into every Cipher session.
+    Tells Cipher what workspace it's in, what workspaces exist, and the
+    current open tickets so it can answer questions like 'what are my tickets'.
+    """
+    home = get_cipher_home()
+
+    # List all workspaces
+    ws_dir = home / "workspaces"
+    workspaces = sorted(p.name for p in ws_dir.iterdir() if p.is_dir()) if ws_dir.exists() else [workspace]
+
+    # Get open tickets for current workspace
+    try:
+        all_tickets = query_tickets(workspace=workspace)
+        open_tickets = [t for t in all_tickets if t.get("status") not in ("done", "cancelled")]
+    except Exception:
+        open_tickets = []
+
+    lines = [
+        "## Current Session Context",
+        f"- **Active workspace**: `{workspace}`",
+        f"- **All workspaces**: {', '.join(f'`{w}`' for w in workspaces)}",
+        "",
+    ]
+
+    if open_tickets:
+        lines.append(f"## Open Tickets in `{workspace}` ({len(open_tickets)} open)")
+        for t in open_tickets[:20]:  # cap at 20
+            priority_map = {1: "critical", 2: "high", 3: "medium", 4: "low", 5: "minor"}
+            pri = priority_map.get(t.get("priority", 3), "medium")
+            assigned = t.get("assigned_to") or "unassigned"
+            lines.append(
+                f"- **{t['id']}** [{t['status']}] [{pri}] {t['title']} "
+                f"(type: {t['type']}, assigned: {assigned})"
+            )
+    else:
+        lines.append(f"## Tickets in `{workspace}`")
+        lines.append("- No open tickets.")
+
+    lines += [
+        "",
+        "Use this context to answer questions about workspaces and tickets directly.",
+        "When the user asks about tickets, reference the list above.",
+        "When creating tickets, use the active workspace unless told otherwise.",
+    ]
+
+    return "\n".join(lines)
 
 
 async def _heartbeat(ws: WebSocket, interval: float = 4.0):
@@ -110,14 +160,18 @@ async def chat_websocket(ws: WebSocket):
             start_time = time.time()
             full_response_parts = []
 
+            # Build workspace context — prepended to the user message so Cipher
+            # always has fresh workspace/ticket state regardless of session caching
+            workspace_ctx = _build_workspace_context(workspace) if primary_agent == "cipher" else None
+            task_with_ctx = f"{workspace_ctx}\n\n---\n\n**User:** {message}" if workspace_ctx else message
+
             # Send a heartbeat every 3 seconds while waiting for first token
-            # so the client knows the agent is starting up (Hermes can take 10-25s)
             heartbeat_task = asyncio.create_task(_heartbeat(ws))
 
             try:
                 async for event in run_agent_streaming(
                     agent=primary_agent,
-                    task=message,
+                    task=task_with_ctx,
                     workspace=workspace,
                 ):
                     if event["type"] == "token":
