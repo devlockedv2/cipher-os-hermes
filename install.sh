@@ -72,7 +72,7 @@ done
 # ── Main ────────────────────────────────────────────────────────────────────
 banner
 
-step "[ 1 / 7 ]  Checking requirements"
+step "[ 1 / 8 ]  Checking requirements"
 
 # Python
 PYTHON=""
@@ -131,7 +131,7 @@ else
   die "curl or wget is required"
 fi
 
-step "[ 2 / 7 ]  Cloning repository"
+step "[ 2 / 8 ]  Cloning repository"
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   warn "Directory $INSTALL_DIR already exists — pulling latest"
@@ -142,7 +142,7 @@ else
 fi
 success "Repository ready at $INSTALL_DIR"
 
-step "[ 3 / 7 ]  Installing Python dependencies"
+step "[ 3 / 8 ]  Installing Python dependencies"
 
 cd "$INSTALL_DIR"
 
@@ -162,7 +162,7 @@ else
 fi
 success "Python environment ready"
 
-step "[ 4 / 7 ]  Building web UI"
+step "[ 4 / 8 ]  Building web UI"
 
 if command -v node &>/dev/null && command -v npm &>/dev/null; then
   NODE_VER=$(node --version | tr -d 'v')
@@ -183,7 +183,7 @@ else
   warn "Install Node 18+ and run: cd $INSTALL_DIR/web && npm install && npm run build"
 fi
 
-step "[ 5 / 7 ]  Initialising CIPHER-OS"
+step "[ 5 / 8 ]  Initialising CIPHER-OS"
 
 # Run the Python init via the installed CLI
 INIT_ARGS=""
@@ -289,7 +289,129 @@ for kb in team-roster.md workflows.md; do
 done
 success "Knowledge files installed"
 
-step "[ 6 / 7 ]  Setting up system service"
+step "[ 6 / 8 ]  Provisioning agent gateways"
+
+HERMES_BIN="$(command -v hermes 2>/dev/null || echo "$HOME/.local/bin/hermes")"
+HERMES_VENV="$(dirname "$HERMES_BIN")/../lib/python*/site-packages/../../.." 
+HERMES_PYTHON="$HOME/.hermes/hermes-agent/venv/bin/python"
+CIPHER_API_KEY="cipher-os-internal"
+
+declare -A AGENT_PORTS=([cipher]=8642 [lens]=8643 [atlas]=8644 [forge]=8645 [sentinel]=8646)
+
+# AWS creds from environment (EC2 instance role or env vars)
+AWS_CREDS=""
+[ -n "${AWS_ACCESS_KEY_ID:-}" ] && AWS_CREDS="AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"$'\n'"AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+[ -n "${AWS_DEFAULT_REGION:-}" ] && AWS_CREDS="$AWS_CREDS"$'\n'"AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
+[ -n "${AWS_REGION:-}" ] && AWS_CREDS="$AWS_CREDS"$'\n'"AWS_REGION=$AWS_REGION"
+
+MODEL="${HERMES_MODEL:-us.anthropic.claude-sonnet-4-5-20250929-v1:0}"
+
+for AGENT_NAME in cipher lens atlas forge sentinel; do
+  PORT="${AGENT_PORTS[$AGENT_NAME]}"
+  PROFILE_DIR="$HOME/.hermes/profiles/$AGENT_NAME"
+
+  log "  [$AGENT_NAME] provisioning profile on port $PORT..."
+
+  # Create profile (idempotent)
+  "$HERMES_BIN" profile create "$AGENT_NAME" 2>/dev/null || true
+
+  # Write config.yaml
+  cat > "$PROFILE_DIR/config.yaml" << CFGEOF
+model:
+  default: "$MODEL"
+  provider: bedrock
+
+agent:
+  max_turns: 50
+
+display:
+  show_cost: false
+
+platforms:
+  api_server:
+    enabled: true
+    host: 127.0.0.1
+    port: $PORT
+CFGEOF
+
+  # Write .env (API key + AWS creds if available)
+  cat > "$PROFILE_DIR/.env" << ENVEOF
+API_SERVER_KEY=$CIPHER_API_KEY
+GATEWAY_ALLOW_ALL_USERS=true
+API_SERVER_PORT=$PORT
+$AWS_CREDS
+ENVEOF
+
+  # Copy personality prompt
+  PERSONALITY_SRC="$INSTALL_DIR/templates/agents/$AGENT_NAME/personality.md"
+  if [ -f "$PERSONALITY_SRC" ]; then
+    cp "$PERSONALITY_SRC" "$PROFILE_DIR/personality.md"
+    log "  [$AGENT_NAME] personality installed"
+  fi
+
+  # Write systemd service (no HERMES_HOME — use -p flag so profile config is loaded correctly)
+  SERVICE_DIR="$HOME/.config/systemd/user"
+  mkdir -p "$SERVICE_DIR"
+  cat > "$SERVICE_DIR/hermes-gateway-$AGENT_NAME.service" << SVCEOF
+[Unit]
+Description=Hermes Gateway - $AGENT_NAME agent (port $PORT)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=$HERMES_PYTHON -m hermes_cli.main -p $AGENT_NAME gateway run
+WorkingDirectory=$HOME/.hermes/hermes-agent
+Environment="PATH=$HOME/.hermes/hermes-agent/venv/bin:$HOME/.hermes/hermes-agent/node_modules/.bin:$HOME/.hermes/node/bin:$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="VIRTUAL_ENV=$HOME/.hermes/hermes-agent/venv"
+Restart=on-failure
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+SVCEOF
+
+  log "  [$AGENT_NAME] service file written"
+done
+
+if command -v systemctl &>/dev/null && systemctl --user daemon-reload &>/dev/null 2>&1; then
+  systemctl --user daemon-reload
+  for AGENT_NAME in cipher lens atlas forge sentinel; do
+    systemctl --user enable "hermes-gateway-$AGENT_NAME.service" 2>/dev/null || true
+    systemctl --user start "hermes-gateway-$AGENT_NAME.service" || true
+  done
+  log "  Waiting for gateways to start..."
+  sleep 15
+  ALL_UP=true
+  for PORT in 8642 8643 8644 8645 8646; do
+    if curl -s --max-time 3 "http://127.0.0.1:$PORT/health" 2>/dev/null | grep -q '"ok"'; then
+      log "  port $PORT: ✓"
+    else
+      warn "  port $PORT: not responding (may still be starting)"
+      ALL_UP=false
+    fi
+  done
+  if [ "$ALL_UP" = true ]; then
+    success "All 5 agent gateways running"
+  else
+    warn "Some gateways still starting — check with: systemctl --user status hermes-gateway-cipher"
+  fi
+else
+  warn "systemd not available — start gateways manually:"
+  for AGENT_NAME in cipher lens atlas forge sentinel; do
+    PORT="${AGENT_PORTS[$AGENT_NAME]}"
+    warn "  HERMES_HOME=\$HOME/.hermes/profiles/$AGENT_NAME hermes gateway run &"
+  done
+fi
+
+step "[ 7 / 8 ]  Setting up system service"
 
 if [ "$SKIP_SERVICE" = true ]; then
   warn "Skipping service setup (--no-service)"
@@ -334,7 +456,7 @@ else
   success "Server started (PID: $(cat $CIPHER_HOME/server.pid))"
 fi
 
-step "[ 7 / 7 ]  Verifying installation"
+step "[ 8 / 8 ]  Verifying installation"
 
 PORT="${CUSTOM_PORT:-9800}"
 

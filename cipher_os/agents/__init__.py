@@ -1,35 +1,48 @@
-"""Agent spawner — runs Hermes subprocesses for each agent with streaming output."""
+"""Agent spawner — connects to per-profile Hermes API Server gateways for real SSE streaming."""
 
 import asyncio
 import json
-import os
-import shutil
-import subprocess
+import logging
+import time
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import AsyncIterator, Optional
 
+import httpx
+
 from ..core.config import get_cipher_home, load_config
-from ..core.workspace import get_allowed_paths
+
+logger = logging.getLogger(__name__)
 
 
 AGENT_NAMES = ("cipher", "lens", "atlas", "forge", "sentinel")
 
 AGENT_ROLES = {
-    "cipher": "Orchestrator — routes, delegates, approves",
-    "lens": "Researcher — deep research, source synthesis",
-    "atlas": "Planner — architecture, estimation, planning",
-    "forge": "Developer — code, tests, refactoring",
+    "cipher":   "Orchestrator — routes, delegates, approves",
+    "lens":     "Researcher — deep research, source synthesis",
+    "atlas":    "Planner — architecture, estimation, planning",
+    "forge":    "Developer — code, tests, refactoring",
     "sentinel": "DevOps — infra, deploy, monitoring",
 }
 
 AGENT_COLORS = {
-    "cipher": "#8B5CF6",
-    "lens":   "#7DD3FC",
-    "atlas":  "#5EE2B5",
-    "forge":  "#F5B544",
+    "cipher":   "#8B5CF6",
+    "lens":     "#7DD3FC",
+    "atlas":    "#5EE2B5",
+    "forge":    "#F5B544",
     "sentinel": "#F26D6D",
 }
+
+# Per-agent gateway ports (matches each profile's API_SERVER_PORT)
+AGENT_PORTS = {
+    "cipher":   8642,
+    "lens":     8643,
+    "atlas":    8644,
+    "forge":    8645,
+    "sentinel": 8646,
+}
+
+# Shared internal API key (set in each profile's .env as API_SERVER_KEY)
+GATEWAY_API_KEY = "cipher-os-internal"
 
 
 @dataclass
@@ -38,312 +51,238 @@ class AgentSession:
     agent: str
     workspace: str
     project: Optional[str] = None
-    process: Optional[asyncio.subprocess.Process] = None
-    status: str = "idle"  # idle | working | errored | dead
+    session_id: Optional[str] = None
+    status: str = "idle"   # idle | working | errored
     current_task: Optional[str] = None
     ticket_id: Optional[str] = None
-    allowed_paths: list[str] = field(default_factory=list)
 
 
-def get_hermes_binary() -> str:
-    """Find the Hermes binary from config or PATH."""
-    home = get_cipher_home()
-    config = load_config()
-
-    # Check config first (written by installer)
-    hermes_binary = config.get("hermes", {}).get("binary", "")
-    if hermes_binary and Path(hermes_binary).is_file():
-        return hermes_binary
-
-    # Search PATH
-    found = shutil.which("hermes")
-    if found:
-        return found
-
-    # Common install locations
-    for candidate in [
-        Path.home() / ".local" / "bin" / "hermes",
-        Path.home() / ".hermes" / "hermes-agent" / "hermes",
-        Path("/usr/local/bin/hermes"),
-    ]:
-        if candidate.is_file():
-            return str(candidate)
-
-    raise RuntimeError(
-        "Hermes Agent not found. Install it from https://github.com/NousResearch/hermes-agent "
-        "or set hermes.binary in ~/.cipher-os/config.yaml"
-    )
+def get_gateway_url(agent: str) -> str:
+    """Return the base URL for an agent's gateway."""
+    port = AGENT_PORTS.get(agent, 8642)
+    return f"http://127.0.0.1:{port}"
 
 
-def get_agent_personality(agent: str) -> str:
-    """Load agent personality (local override → installed → template)."""
-    home = get_cipher_home()
-
-    for path in [
-        home / "agents" / agent / "personality.local.md",
-        home / "agents" / agent / "personality.md",
-        Path(__file__).parent.parent / "templates" / "agents" / agent / "personality.md",
-    ]:
-        if path.exists():
-            return path.read_text()
-
-    return f"# {agent.title()}\n\nYou are {agent.title()}, part of the CIPHER-OS agent fleet. {AGENT_ROLES.get(agent, '')}"
+def make_session_id(agent: str, workspace: str, ticket_id: Optional[str] = None) -> str:
+    """
+    Build a stable session ID.
+    {agent}-{workspace}          → persistent workspace session (remembers context)
+    {agent}-{workspace}-{ticket} → per-task isolated session
+    """
+    if ticket_id:
+        return f"{agent}-{workspace}-{ticket_id}"
+    return f"{agent}-{workspace}"
 
 
-def get_rules() -> str:
-    """Load safety + operations rules (safety first — highest priority)."""
-    home = get_cipher_home()
-    parts = []
-    for name in ("safety.md", "operations.md"):
-        p = home / "rules" / name
-        if p.exists():
-            parts.append(p.read_text())
-    return "\n\n---\n\n".join(parts)
+def _gateway_headers() -> dict:
+    return {
+        "Authorization": f"Bearer {GATEWAY_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
 
-def get_knowledge() -> str:
-    """Load shared knowledge: team roster + standard workflows."""
-    home = get_cipher_home()
-    parts = []
-    for name in ("team-roster.md", "workflows.md"):
-        p = home / "knowledge" / name
-        if p.exists():
-            parts.append(p.read_text())
-    return "\n\n---\n\n".join(parts)
+async def gateway_health(agent: str) -> bool:
+    """Check if an agent's gateway is reachable."""
+    url = get_gateway_url(agent)
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(f"{url}/health")
+            return r.status_code == 200
+    except Exception:
+        return False
 
 
-def build_system_prompt(agent: str, workspace: Optional[str] = None) -> str:
-    """Build full system prompt: safety → ops → personality → knowledge → workspace context."""
-    parts = []
-
-    # 1. Safety rules (highest priority — cannot be overridden)
-    rules = get_rules()
-    if rules:
-        parts.append(rules)
-
-    # 2. Agent personality
-    parts.append(get_agent_personality(agent))
-
-    # 3. Shared knowledge (team roster, workflows)
-    knowledge = get_knowledge()
-    if knowledge:
-        parts.append(knowledge)
-
-    # 4. Workspace-specific context
-    if workspace:
-        allowed = get_allowed_paths(workspace, agent)
-        ws_skills = _get_workspace_skills(workspace)
-        ws_block = (
-            f"## Session Context\n\n"
-            f"- Workspace: {workspace}\n"
-            f"- Agent: {agent}\n"
-            f"- Allowed paths: {json.dumps(allowed)}\n"
-            f"- Role: {AGENT_ROLES.get(agent, 'Unknown')}\n"
+async def _ensure_session(client: httpx.AsyncClient, agent: str, session_id: str) -> None:
+    """Create the session if it doesn't exist yet."""
+    url = get_gateway_url(agent)
+    headers = _gateway_headers()
+    # Check if it exists
+    r = await client.get(f"{url}/api/sessions/{session_id}", headers=headers)
+    if r.status_code == 404:
+        # Create it
+        await client.post(
+            f"{url}/api/sessions",
+            headers=headers,
+            json={"id": session_id},
         )
-        if ws_skills:
-            ws_block += f"\n## Workspace Knowledge\n\n{ws_skills}"
-        parts.append(ws_block)
-
-    return "\n\n---\n\n".join(parts)
-
-
-def _get_workspace_skills(workspace: str) -> str:
-    """Load any .md files from the workspace skills/ directory."""
-    home = get_cipher_home()
-    skills_dir = home / "workspaces" / workspace / "skills"
-    if not skills_dir.exists():
-        return ""
-    parts = []
-    for f in sorted(skills_dir.glob("*.md")):
-        parts.append(f.read_text())
-    return "\n\n---\n\n".join(parts)
-
-
-def build_hermes_cmd(
-    agent: str,
-    task: str,
-    workspace: Optional[str] = None,
-    model: Optional[str] = None,
-) -> list[str]:
-    """Build the hermes chat command for an agent task."""
-    hermes = get_hermes_binary()
-    config = load_config(workspace=workspace)
-
-    # Model: explicit arg → per-agent config override → let Hermes use its own default
-    agent_model = config.get("agents", {}).get(agent, {}).get("model") or model
-
-    cmd = [hermes, "chat", "-q", task, "-Q", "--source", "tool", "--ignore-rules"]  # -Q = quiet, --source tool = don't pollute user session list, --ignore-rules = don't load Hermes own SOUL/memory
-
-    if agent_model:
-        cmd += ["-m", agent_model]
-    # If no model specified, Hermes uses whatever is in its own config.yaml
-
-    return cmd
-
-
-def build_hermes_env(agent: str, workspace: Optional[str] = None) -> dict:
-    """Build environment for the Hermes subprocess."""
-    env = os.environ.copy()
-    home = get_cipher_home()
-    config = load_config(workspace=workspace)
-
-    # Inject system prompt — HERMES_EPHEMERAL_SYSTEM_PROMPT is the correct env var
-    system_prompt = build_system_prompt(agent, workspace)
-    env["HERMES_EPHEMERAL_SYSTEM_PROMPT"] = system_prompt
-
-    # Hermes home — use configured value if set, else let Hermes find its own
-    hermes_home = config.get("hermes", {}).get("home", "")
-    if hermes_home:
-        env["HERMES_HOME"] = hermes_home
-
-    # Workspace working directory
-    if workspace:
-        ws_path = home / "workspaces" / workspace
-        ws_path.mkdir(parents=True, exist_ok=True)
-        env["PWD"] = str(ws_path)
-
-    return env
+        logger.info("[%s] Created session %s", agent, session_id)
 
 
 async def run_agent_streaming(
-    agent: str,
     task: str,
+    agent: str = "cipher",
     workspace: str = "default",
-    model: Optional[str] = None,
+    ticket_id: Optional[str] = None,
+    system_prompt_extra: Optional[str] = None,
 ) -> AsyncIterator[dict]:
     """
-    Spawn a Hermes agent subprocess and stream output token by token.
+    Stream tokens from an agent's Hermes gateway via SSE.
 
     Yields dicts:
-      {"type": "token",  "content": "..."}
-      {"type": "done",   "content": ""}
-      {"type": "error",  "content": "..."}
-    """
-    cmd = build_hermes_cmd(agent, task, workspace, model)
-    env = build_hermes_env(agent, workspace)
+        {"type": "token",   "content": "..."}
+        {"type": "done",    "content": ""}
+        {"type": "error",   "content": "..."}
 
-    home = get_cipher_home()
-    workdir = str(home / "workspaces" / workspace)
-    Path(workdir).mkdir(parents=True, exist_ok=True)
+    SSE event format (Hermes-native):
+        event: assistant.delta  → token chunk in data.delta
+        event: assistant.completed → full response in data.content
+        event: run.completed / done → stream end
+        event: error → data.message
+    """
+    session_id = make_session_id(agent, workspace, ticket_id)
+    url = get_gateway_url(agent)
+    stream_url = f"{url}/api/sessions/{session_id}/chat/stream"
+
+    payload: dict = {"message": task}
+    if system_prompt_extra:
+        payload["ephemeral_system_prompt"] = system_prompt_extra
+
+    headers = _gateway_headers()
+    headers["Accept"] = "text/event-stream"
+
+    logger.info("[%s] SSE stream → session=%s", agent, session_id)
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-            cwd=workdir,
-        )
+        async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+            # Ensure session exists before streaming
+            await _ensure_session(client, agent, session_id)
 
-        # Stream stdout — Hermes -Q batches the full response at process end,
-        # so we read the complete output then simulate streaming word-by-word.
-        assert proc.stdout
-        raw_output = await proc.stdout.read()
-        full_text = raw_output.decode("utf-8", errors="replace")
+            async with client.stream("POST", stream_url, json=payload, headers=headers) as resp:
+                if resp.status_code not in (200, 201):
+                    body = await resp.aread()
+                    yield {"type": "error", "content": f"Gateway {resp.status_code}: {body.decode()[:200]}"}
+                    return
 
-        # Simulate token streaming — split into word-sized chunks and yield
-        # with a small delay so the UI renders progressively
-        words = full_text.split(" ")
-        chunk = ""
-        for i, word in enumerate(words):
-            chunk += ("" if i == 0 else " ") + word
-            if len(chunk) >= 40 or i == len(words) - 1:
-                yield {"type": "token", "content": chunk}
-                chunk = ""
-                await asyncio.sleep(0.015)  # ~65 chunks/sec feels natural
+                current_event = None
+                buffer = ""
 
-        # Wait for process to finish
-        await proc.wait()
+                async for chunk in resp.aiter_text():
+                    buffer += chunk
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        line = line.rstrip()
 
-        # Grab stderr if non-zero exit
-        stderr_data = b""
-        if proc.returncode != 0:
-            assert proc.stderr
-            stderr_data = await proc.stderr.read()
-            error_msg = stderr_data.decode("utf-8", errors="replace").strip()
-            yield {"type": "error", "content": f"Agent exited with code {proc.returncode}: {error_msg}"}
-        else:
-            yield {"type": "done", "content": ""}
+                        if line.startswith("event:"):
+                            current_event = line[6:].strip()
+                            continue
 
-    except FileNotFoundError:
-        yield {"type": "error", "content": "Hermes binary not found. Check installation."}
+                        if line.startswith("data:"):
+                            data_str = line[5:].strip()
+                            if not data_str or data_str == "[DONE]":
+                                if current_event in ("done", "run.completed"):
+                                    yield {"type": "done", "content": ""}
+                                    return
+                                continue
+
+                            try:
+                                data = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+
+                            if current_event == "assistant.delta":
+                                delta = data.get("delta", "")
+                                if delta:
+                                    yield {"type": "token", "content": delta}
+
+                            elif current_event == "done":
+                                yield {"type": "done", "content": ""}
+                                return
+
+                            elif current_event == "run.completed":
+                                yield {"type": "done", "content": ""}
+                                return
+
+                            elif current_event == "error":
+                                msg = data.get("message") or data.get("error", {}).get("message", "unknown error")
+                                yield {"type": "error", "content": msg}
+                                return
+
+                            # Reset event after data
+                            current_event = None
+
+                        elif line == "":
+                            # Blank line = end of SSE event block
+                            current_event = None
+
+        yield {"type": "done", "content": ""}
+
+    except httpx.ConnectError:
+        yield {"type": "error", "content": f"Agent '{agent}' gateway offline (port {AGENT_PORTS.get(agent)})"}
+    except httpx.TimeoutException:
+        yield {"type": "error", "content": f"Agent '{agent}' timed out after 120s"}
     except Exception as e:
+        logger.exception("[%s] unexpected error", agent)
         yield {"type": "error", "content": str(e)}
 
 
-async def _read_chunks(stream: asyncio.StreamReader, chunk_size: int = 64) -> AsyncIterator[str]:
-    """Read from an asyncio stream in chunks."""
-    while True:
-        try:
-            chunk = await asyncio.wait_for(stream.read(chunk_size), timeout=120.0)
-            if not chunk:
-                break
-            yield chunk.decode("utf-8", errors="replace")
-        except asyncio.TimeoutError:
-            break
+async def run_agent_sync(task: str, agent: str = "cipher", workspace: str = "default") -> str:
+    """Run agent and return full response as string (non-streaming)."""
+    parts = []
+    async for event in run_agent_streaming(task, agent=agent, workspace=workspace):
+        if event["type"] == "token":
+            parts.append(event["content"])
+        elif event["type"] == "error":
+            return f"[error] {event['content']}"
+    return "".join(parts)
 
 
-def run_agent_sync(
-    agent: str,
-    task: str,
-    workspace: str = "default",
-    model: Optional[str] = None,
-    timeout: int = 300,
-) -> dict:
-    """
-    Blocking version — runs agent and returns full response.
-    Used for ticket execution, not chat streaming.
+# ── Config & Status helpers ─────────────────────────────────────────────────
 
-    Returns: {"success": bool, "output": str, "error": str}
-    """
-    cmd = build_hermes_cmd(agent, task, workspace, model)
-    env = build_hermes_env(agent, workspace)
+def get_agent_config(agent: str) -> dict:
+    """Return per-agent config from ~/.cipher-os/config.yaml."""
+    cfg = load_config()
+    agents_cfg = cfg.get("agents", {})
+    agent_cfg = agents_cfg.get(agent, {})
+    return {
+        "model": agent_cfg.get("model", ""),
+        "max_cost": agent_cfg.get("max_cost", 5.0),
+        "timeout": agent_cfg.get("timeout", 300),
+        "routing_weight": agent_cfg.get("routing_weight", 1.0),
+        "enabled": agent_cfg.get("enabled", True),
+    }
 
+
+def get_agent_personality(agent: str) -> str:
+    """Return the current system prompt for an agent."""
+    from pathlib import Path
     home = get_cipher_home()
-    workdir = str(home / "workspaces" / workspace)
-    Path(workdir).mkdir(parents=True, exist_ok=True)
+    local_path = home / "agents" / agent / "personality.local.md"
+    default_path = home / "agents" / agent / "personality.md"
+    for p in (local_path, default_path):
+        if p.exists():
+            return p.read_text()
+    return f"# {agent.capitalize()}\n\n{AGENT_ROLES.get(agent, '')}"
 
+
+def get_agent_status() -> list:
+    """Return status + stats for all agents."""
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=workdir,
-            timeout=timeout,
-        )
-        return {
-            "success": result.returncode == 0,
-            "output": result.stdout.strip(),
-            "error": result.stderr.strip() if result.returncode != 0 else "",
-        }
-    except subprocess.TimeoutExpired:
-        return {"success": False, "output": "", "error": f"Agent timed out after {timeout}s"}
-    except FileNotFoundError:
-        return {"success": False, "output": "", "error": "Hermes binary not found"}
-    except Exception as e:
-        return {"success": False, "output": "", "error": str(e)}
+        from ..core.activity import stats as activity_stats
+    except Exception:
+        activity_stats = lambda **kw: {}
 
-
-def get_agent_status() -> list[dict]:
-    """Return status info for all agents, enriched from activity log."""
-    from ..activity.log import stats as activity_stats
-    config = load_config()
-    agents = []
-    for name in AGENT_NAMES:
-        agent_config = config.get("agents", {}).get(name, {})
-        s = activity_stats(agent=name)
-        agents.append({
-            "name": name,
-            "role": AGENT_ROLES[name],
-            "color": AGENT_COLORS[name],
-            "model": agent_config.get("model") or config.get("hermes", {}).get("model", "default"),
-            "status": "nominal",
-            "tasks_completed": s.get("completed") or 0,
-            "tasks_failed":    s.get("failed") or 0,
-            "tasks_total":     s.get("total_tasks") or 0,
-            "total_cost":      round(s.get("total_cost") or 0.0, 4),
-            "input_tokens":    s.get("total_input_tokens") or 0,
-            "output_tokens":   s.get("total_output_tokens") or 0,
+    result = []
+    for agent in AGENT_NAMES:
+        cfg = get_agent_config(agent)
+        try:
+            agent_stats = activity_stats(agent=agent)
+        except Exception:
+            agent_stats = {}
+        result.append({
+            "name": agent,
+            "role": AGENT_ROLES[agent],
+            "color": AGENT_COLORS[agent],
+            "status": "online",
+            "enabled": cfg["enabled"],
+            "model": cfg["model"],
+            "max_cost": cfg["max_cost"],
+            "timeout": cfg["timeout"],
+            "routing_weight": cfg["routing_weight"],
+            "tasks_completed": agent_stats.get("completed", 0),
+            "tasks_failed": agent_stats.get("failed", 0),
+            "total_cost": agent_stats.get("total_cost", 0.0),
+            "input_tokens": agent_stats.get("input_tokens", 0),
+            "output_tokens": agent_stats.get("output_tokens", 0),
+            "gateway_port": AGENT_PORTS[agent],
         })
-    return agents
+    return result
